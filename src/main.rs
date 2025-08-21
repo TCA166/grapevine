@@ -6,6 +6,8 @@ mod channel;
 
 mod message;
 
+mod packet;
+
 use app::GrapevineApp;
 
 fn main() -> eframe::Result {

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use std::{fmt::Display, io::Read};
+use std::fmt::Display;
 
 pub struct Message {
     sender: String,
@@ -8,7 +8,14 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn read_from<R: Read>(reader: &mut R) -> Self {}
+    pub fn new(sender: String, content: String) -> Self {
+        let timestamp = Utc::now();
+        Self {
+            sender,
+            content,
+            timestamp,
+        }
+    }
 }
 
 impl Display for Message {

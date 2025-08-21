@@ -1,17 +1,22 @@
 use std::{
-    net::{TcpListener, TcpStream, ToSocketAddrs},
-    sync::Arc,
+    net::{TcpListener, ToSocketAddrs},
+    sync::{Arc, Mutex},
 };
 
-use super::channel::Channel;
+use super::{channel::Channel, message::Message};
 
-fn stream_handler(stream: TcpStream, channel: Arc<Channel>) {}
+fn stream_handler(channel: Arc<Channel>) {
+    loop {}
+}
 
-pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Vec<Arc<Channel>>>) {
+pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Mutex<Vec<Arc<Channel>>>>) {
     let listener = TcpListener::bind(addr).unwrap();
-    let mut connections = Vec::new();
+    let mut connection_threads = Vec::new();
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
+        let channel = Arc::new(Channel::new(stream));
+        channels.lock().unwrap().push(channel.clone());
+        connection_threads.push(std::thread::spawn(move || stream_handler(channel)));
     }
 }

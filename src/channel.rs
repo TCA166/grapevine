@@ -1,19 +1,23 @@
-use std::net::Ipv4Addr;
+use std::net::TcpStream;
 
-use super::message::Message;
+use super::{message::Message, packet::Packet};
 
 pub struct Channel {
-    ip: Ipv4Addr,
+    stream: TcpStream,
     name: Option<String>,
     messages: Vec<Message>,
 }
 
 impl Channel {
-    pub fn new(ip: Ipv4Addr) -> Self {
+    pub fn new(stream: TcpStream) -> Self {
         Self {
-            ip,
+            stream,
             name: None,
             messages: Vec::new(),
         }
+    }
+
+    pub fn receive(&mut self) -> Option<Packet> {
+        return Packet::from_reader(&mut self.stream);
     }
 }

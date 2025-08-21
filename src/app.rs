@@ -1,17 +1,22 @@
-use std::{sync::Arc, thread};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
-use super::{channel::Channel, listener::listener_thread, message::Message};
+use super::{channel::Channel, listener::listener_thread};
 
 pub struct GrapevineApp {
     listener_thread: thread::JoinHandle<()>,
-    channels: Arc<Vec<Channel>>,
+    channels: Arc<Mutex<Vec<Arc<Channel>>>>,
 }
 
 impl GrapevineApp {
     pub fn new(address: String) -> Self {
+        let channels = Arc::new(Mutex::new(Vec::new()));
+        let channels_clone = channels.clone();
         Self {
-            listener_thread: thread::spawn(move || listener_thread(address)),
-            channels: Arc::new(Vec::new()),
+            listener_thread: thread::spawn(move || listener_thread(address, channels_clone)),
+            channels,
         }
     }
 }
