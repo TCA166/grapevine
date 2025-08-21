@@ -1,23 +1,42 @@
 use std::net::TcpStream;
 
-use super::{message::Message, packet::Packet};
+use openssl::pkey::{PKey, Private, Public};
+
+use super::protocol::{Handshake, Message, Packet};
 
 pub struct Channel {
     stream: TcpStream,
     name: Option<String>,
     messages: Vec<Message>,
+    our_private_key: PKey<Private>,
+    their_public_key: PKey<Public>,
 }
 
 impl Channel {
-    pub fn new(stream: TcpStream) -> Self {
+    pub fn new(mut stream: TcpStream) -> Self {
+        let private_key = PKey::generate_ed25519().unwrap();
+
+        let our_handshake: Packet = Handshake::new(&private_key).into_packet(&private_key);
+        our_handshake.to_writer(&mut stream).unwrap();
+
+        let their_handshake: Handshake = Packet::from_reader(&mut stream).unwrap().into();
+
         Self {
             stream,
             name: None,
             messages: Vec::new(),
+            our_private_key: private_key,
+            their_public_key: their_handshake.public_key(),
         }
     }
 
     pub fn receive(&mut self) -> Option<Packet> {
-        return Packet::from_reader(&mut self.stream);
+        if let Some(packet) = Packet::from_reader(&mut self.stream) {
+            if !packet.verify(&self.their_public_key) {
+                panic!("Invalid signature");
+            }
+            return Some(packet);
+        }
+        None
     }
 }

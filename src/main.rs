@@ -4,9 +4,7 @@ mod listener;
 
 mod channel;
 
-mod message;
-
-mod packet;
+mod protocol;
 
 use app::GrapevineApp;
 

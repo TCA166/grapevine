@@ -7,7 +7,7 @@ use super::{channel::Channel, listener::listener_thread};
 
 pub struct GrapevineApp {
     listener_thread: thread::JoinHandle<()>,
-    channels: Arc<Mutex<Vec<Arc<Channel>>>>,
+    channels: Arc<Mutex<Vec<Arc<Mutex<Channel>>>>>,
 }
 
 impl GrapevineApp {
