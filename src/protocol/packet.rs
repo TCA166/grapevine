@@ -30,8 +30,7 @@ pub struct Packet {
 impl Packet {
     pub fn from_data(data: Vec<u8>, private_key: &PKey<Private>) -> Self {
         let mut signer = Signer::new_without_digest(private_key).unwrap();
-        signer.update(&data).unwrap();
-        let signature = signer.sign_to_vec().unwrap();
+        let signature = signer.sign_oneshot_to_vec(&data).unwrap();
 
         Packet { data, signature }
     }
