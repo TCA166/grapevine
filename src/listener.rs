@@ -1,6 +1,7 @@
 use std::{
     net::{TcpListener, ToSocketAddrs},
     sync::{Arc, Mutex},
+    thread,
 };
 
 use super::channel::Channel;
@@ -13,6 +14,6 @@ pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Mutex<Vec<Arc<Ch
         let stream = stream.unwrap();
         let channel = Arc::new(Channel::new(stream));
         channels.lock().unwrap().push(channel.clone());
-        connection_threads.push(std::thread::spawn(move || channel.listen()));
+        connection_threads.push(thread::spawn(move || channel.listen()));
     }
 }

@@ -1,4 +1,8 @@
-use std::{net::TcpStream, ops::Deref, sync::Mutex};
+use std::{
+    net::TcpStream,
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
 use openssl::pkey::{PKey, Private, Public};
 
@@ -10,6 +14,7 @@ pub struct Channel {
     messages: Mutex<Vec<Message>>,
     our_private_key: PKey<Private>,
     their_public_key: PKey<Public>,
+    listeners: Vec<Arc<Mutex<dyn MessageListener>>>,
 }
 
 impl Channel {
@@ -42,6 +47,7 @@ impl Channel {
             messages: Mutex::new(Vec::new()),
             our_private_key: our_key,
             their_public_key: their_key,
+            listeners: Vec::new(),
         }
     }
 
@@ -58,6 +64,9 @@ impl Channel {
     pub fn listen(&self) {
         while let Some(packet) = self.receive() {
             let message: Message = Message::from_packet(&packet);
+            for listener in &self.listeners {
+                listener.lock().unwrap().on_message(&message, self);
+            }
             self.messages.lock().unwrap().push(message);
         }
     }
@@ -68,4 +77,16 @@ impl Channel {
             .to_writer(&mut self.stream.lock().unwrap().deref())
             .unwrap();
     }
+
+    pub fn name(&self) -> String {
+        if let Some(name) = &self.name {
+            name.clone()
+        } else {
+            self.stream.lock().unwrap().peer_addr().unwrap().to_string()
+        }
+    }
+}
+
+pub trait MessageListener: Send {
+    fn on_message(&mut self, message: &Message, channel: &Channel);
 }

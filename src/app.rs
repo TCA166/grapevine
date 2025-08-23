@@ -29,9 +29,16 @@ impl Default for GrapevineApp {
 
 impl eframe::App for GrapevineApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("My egui Application");
+        egui::SidePanel::left("Channels").show(ctx, |ui| {
+            ui.vertical_centered_justified(|ui| {
+                for channel in self.channels.lock().unwrap().iter() {
+                    ui.label(channel.name());
+                }
+                ui.menu_button("New Channel", |ui| {});
+            });
         });
+
+        egui::CentralPanel::default().show(ctx, |ui| {});
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {}
