@@ -1,13 +1,12 @@
 use std::io::{Read, Write};
 
+use bitcode::{deserialize, serialize};
 use integer_encoding::{VarIntReader, VarIntWriter};
 use openssl::{
-    hash::MessageDigest,
     pkey::{PKey, Private, Public},
     sign::{Signer, Verifier},
 };
-
-use super::{handshake::Handshake, message::Message};
+use serde::{Deserialize, Serialize};
 
 fn read_buffer<R: Read>(reader: &mut R) -> Option<Vec<u8>> {
     let length = reader.read_varint::<u32>().ok()?;
@@ -49,25 +48,30 @@ impl Packet {
     }
 
     pub fn verify(&self, public_key: &PKey<Public>) -> bool {
-        let mut verifier = Verifier::new(MessageDigest::sha256(), public_key).unwrap();
-        verifier.update(&self.data).unwrap();
-        verifier.verify(&self.signature).unwrap_or(false)
+        let mut verifier = Verifier::new_without_digest(public_key).unwrap();
+        verifier
+            .verify_oneshot(&self.signature, &self.data)
+            .unwrap_or(false)
     }
 }
 
-impl Into<Message> for Packet {
-    fn into(self) -> Message {
-        let mut parts = self.data.splitn(2, |&b| b == 0);
-        let author =
-            String::from_utf8(parts.next().unwrap_or_default().to_vec()).unwrap_or_default();
-        let message =
-            String::from_utf8(parts.next().unwrap_or_default().to_vec()).unwrap_or_default();
-        Message::new(author, message)
+pub trait IntoPacket {
+    fn into_packet(self, private_key: &PKey<Private>) -> Packet;
+}
+
+impl<T: Serialize> IntoPacket for T {
+    fn into_packet(self, private_key: &PKey<Private>) -> Packet {
+        let data = serialize(&self).unwrap();
+        Packet::from_data(data, private_key)
     }
 }
 
-impl Into<Handshake> for Packet {
-    fn into(self) -> Handshake {
-        Handshake::from_public_key(self.data.to_vec())
+pub trait FromPacket<'de> {
+    fn from_packet(packet: &'de Packet) -> Self;
+}
+
+impl<'de, T: Deserialize<'de>> FromPacket<'de> for T {
+    fn from_packet(packet: &'de Packet) -> T {
+        deserialize(&packet.data).unwrap()
     }
 }

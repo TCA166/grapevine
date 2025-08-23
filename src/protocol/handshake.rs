@@ -1,7 +1,7 @@
 use openssl::pkey::{PKey, Private, Public};
+use serde::{Deserialize, Serialize};
 
-use super::packet::Packet;
-
+#[derive(Serialize, Deserialize)]
 pub struct Handshake {
     public_key: Vec<u8>,
 }
@@ -19,17 +19,13 @@ impl Handshake {
     pub fn public_key(&self) -> PKey<Public> {
         PKey::public_key_from_pem(&self.public_key).unwrap()
     }
-
-    pub fn into_packet(self, private_key: &PKey<Private>) -> Packet {
-        Packet::from_data(self.public_key, private_key)
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
+    use super::super::packet::{FromPacket, IntoPacket, Packet};
     use super::*;
-    use openssl::pkey::PKey;
     use std::io::Cursor;
 
     const TEST_PRIVATE_KEY: &[u8] = b"-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIHQUR+jFSCq7hQZcvIS2/DUJWP5u0Y8Yq+aoSNl/eKyp\n-----END PRIVATE KEY-----\n";
@@ -52,6 +48,7 @@ mod tests {
         packet.to_writer(&mut data).unwrap();
         let decoded_packet = Packet::from_reader(&mut Cursor::new(data)).unwrap();
         assert!(decoded_packet.verify(&public_key));
-        let decoded: Handshake = decoded_packet.into();
+        let decoded: Handshake = Handshake::from_packet(&decoded_packet);
+        assert!(decoded.public_key().public_eq(&private_key));
     }
 }

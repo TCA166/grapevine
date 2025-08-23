@@ -3,16 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{
-    channel::Channel,
-    protocol::{Handshake, Message, Packet},
-};
-
-fn stream_handler(channel: Arc<Channel>) {
-    while let Some(packet) = channel.receive() {
-        let message: Message = packet.into();
-    }
-}
+use super::channel::Channel;
 
 pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Mutex<Vec<Arc<Channel>>>>) {
     let listener = TcpListener::bind(addr).unwrap();
@@ -22,6 +13,6 @@ pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Mutex<Vec<Arc<Ch
         let stream = stream.unwrap();
         let channel = Arc::new(Channel::new(stream));
         channels.lock().unwrap().push(channel.clone());
-        connection_threads.push(std::thread::spawn(move || stream_handler(channel)));
+        connection_threads.push(std::thread::spawn(move || channel.listen()));
     }
 }

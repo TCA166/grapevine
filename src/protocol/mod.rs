@@ -2,7 +2,7 @@ mod message;
 pub use message::Message;
 
 mod packet;
-pub use packet::Packet;
+pub use packet::{FromPacket, IntoPacket, Packet};
 
 mod handshake;
 pub use handshake::Handshake;
