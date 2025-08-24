@@ -9,7 +9,7 @@ use openssl::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::AES_KEY_SIZE;
+use super::{AES_IV_SIZE, AES_KEY_SIZE};
 
 fn read_buffer<R: Read>(reader: &mut R) -> Result<Vec<u8>, io::Error> {
     let length = reader.read_varint::<u32>()?;

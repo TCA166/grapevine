@@ -8,8 +8,9 @@ pub struct RsaHandshake {
 
 impl RsaHandshake {
     pub fn new(private_key: &PKey<Private>) -> Self {
-        let public_key = private_key.public_key_to_pem().unwrap();
-        Self { public_key }
+        Self {
+            public_key: private_key.public_key_to_pem().unwrap(),
+        }
     }
 
     pub fn public_key(&self) -> PKey<Public> {
@@ -22,9 +23,8 @@ mod tests {
 
     use super::super::packet::{FromPacket, IntoPacket, Packet};
     use super::*;
+    use openssl::rsa::Rsa;
     use std::io::Cursor;
-
-    const TEST_PRIVATE_KEY: &[u8] = b"-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIHQUR+jFSCq7hQZcvIS2/DUJWP5u0Y8Yq+aoSNl/eKyp\n-----END PRIVATE KEY-----\n";
 
     #[test]
     fn test_handshake_new() {
@@ -36,7 +36,7 @@ mod tests {
 
     #[test]
     fn test_packet_conversion() {
-        let private_key = PKey::private_key_from_pem(TEST_PRIVATE_KEY).unwrap();
+        let private_key = PKey::from_rsa(Rsa::generate(2048).unwrap()).unwrap();
         let handshake = RsaHandshake::new(&private_key);
         let public_key = handshake.public_key();
         let packet = handshake.into_packet(&private_key);
