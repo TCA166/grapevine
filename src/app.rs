@@ -1,8 +1,9 @@
 use std::{
-    error, io, mem,
+    error, io,
+    iter::zip,
+    mem,
     net::{AddrParseError, Ipv4Addr, TcpStream},
     num::ParseIntError,
-    ops::Deref,
     str::FromStr,
     sync::{Arc, Mutex},
     thread,
@@ -19,7 +20,7 @@ use log::{debug, error};
 
 use super::{
     channel::{Channel, ProtocolError},
-    listener::listener_thread,
+    listener::{PendingConnection, listener_thread},
     protocol::Message,
 };
 
@@ -28,6 +29,7 @@ const OUR_NAME: &str = "You";
 pub struct GrapevineApp {
     // core app
     channels: Arc<Mutex<Vec<Arc<Channel>>>>,
+    pending_connections: Arc<Mutex<Vec<PendingConnection>>>,
     selected_channel: Option<Arc<Channel>>,
     // UI related
     channel_name_input: String,
@@ -40,10 +42,11 @@ pub struct GrapevineApp {
 
 impl GrapevineApp {
     pub fn new(address: Ipv4Addr, port: u16) -> Self {
-        let channels = Arc::new(Mutex::new(Vec::new()));
+        let pending_connections = Arc::new(Mutex::new(Vec::new()));
 
         let res = Self {
-            channels: channels.clone(),
+            channels: Arc::new(Mutex::new(Vec::new())),
+            pending_connections: pending_connections.clone(),
             channel_name_input: String::new(),
             channel_ip_input: String::new(),
             channel_port_input: String::new(),
@@ -54,7 +57,7 @@ impl GrapevineApp {
 
         thread::spawn(move || {
             debug!("Starting listener thread for {}:{}", address, port);
-            listener_thread((address, port), channels)
+            listener_thread((address, port), pending_connections)
         });
 
         return res;
@@ -65,16 +68,19 @@ impl GrapevineApp {
         ip: Ipv4Addr,
         port: u16,
         name: Option<String>,
-    ) -> Result<(), ChannelFormError> {
-        let channel = Arc::new(
-            Channel::new(TcpStream::connect((ip, port))?, name)
-                .ok_or(ProtocolError::VerificationError)?,
-        );
+    ) -> Result<(), io::Error> {
+        let stream = TcpStream::connect((ip, port))?;
 
-        self.channels.lock().unwrap().push(channel.clone());
-        debug!("Starting listening thread for channel {}", channel.name());
-        thread::spawn(move || channel.listen());
+        let channels = self.channels.clone();
+        thread::spawn(move || -> Result<(), ChannelFormError> {
+            let channel =
+                Arc::new(Channel::new(stream, name).ok_or(ProtocolError::VerificationError)?);
 
+            channels.lock().unwrap().push(channel.clone());
+            debug!("Starting listening thread for channel {}", channel.name());
+            channel.listen()?;
+            Ok(())
+        });
         Ok(())
     }
 }
@@ -123,41 +129,64 @@ impl eframe::App for GrapevineApp {
                                 self.selected_channel = Some(channel.clone());
                             }
                         }
-                        ui.menu_button("New Channel", |ui| -> Result<(), ChannelFormError> {
-                            ui.label("Channel Name");
-                            ui.text_edit_singleline(&mut self.channel_name_input);
 
-                            ui.label("IP");
-                            ui.text_edit_singleline(&mut self.channel_ip_input);
+                        if let Err(e) = ui
+                            .menu_button("New Channel", |ui| -> Result<(), ChannelFormError> {
+                                ui.label("Channel Name");
+                                ui.text_edit_singleline(&mut self.channel_name_input);
 
-                            ui.label("Port");
-                            ui.text_edit_singleline(&mut self.channel_port_input);
+                                ui.label("IP");
+                                ui.text_edit_singleline(&mut self.channel_ip_input);
 
-                            if ui.button("Create").clicked() {
-                                let port: u16 = self.channel_port_input.parse()?;
-                                let ip = Ipv4Addr::from_str(&self.channel_ip_input)?;
-                                let name =
-                                    Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
+                                ui.label("Port");
+                                ui.text_edit_singleline(&mut self.channel_port_input);
 
-                                self.new_channel(ip, port, name)?;
+                                if ui.button("Create").clicked() {
+                                    let port: u16 = self.channel_port_input.parse()?;
+                                    let ip = Ipv4Addr::from_str(&self.channel_ip_input)?;
+                                    let name = Some(self.channel_name_input.clone())
+                                        .filter(|s| !s.is_empty());
 
-                                ui.close();
-                            }
-                            Ok(())
-                        })
-                        .inner
-                        .transpose()
-                        .inspect_err(|e| {
-                            error!("Channel creation error: {}", e);
-                            self.toasts.error(&format!("Channel creation error: {}", e));
-                        })
+                                    self.new_channel(ip, port, name)?;
+
+                                    ui.close();
+                                }
+                                Ok(())
+                            })
+                            .inner
+                            .transpose()
+                        {
+                            let err_msg = format!("Connection error: {}", e);
+                            error!("{}", err_msg);
+                            self.toasts.error(&err_msg);
+                        }
+
+                        for pending in self.pending_connections.lock().unwrap().iter() {
+                            Frame::group(ui.style())
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(pending.name());
+
+                                        if ui.small_button("✔").clicked() {
+                                            return Some(true);
+                                        }
+
+                                        if ui.small_button("✘").clicked() {
+                                            return Some(false);
+                                        }
+                                        None
+                                    })
+                                    .inner
+                                })
+                                .inner;
+                        }
                     })
                 });
         });
 
         CentralPanel::default().show(ctx, |ui| {
             if let Some(channel) = &self.selected_channel {
-                for message in channel.messages().lock().unwrap().deref() {
+                for message in channel.messages().lock().unwrap().iter() {
                     let (author, layout) = if message.is_theirs() {
                         (channel.name(), Layout::left_to_right(Align::TOP))
                     } else {
