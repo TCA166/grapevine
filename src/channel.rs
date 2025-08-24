@@ -2,9 +2,15 @@ use std::{error, io, net::TcpStream, ops::Deref, sync::Mutex};
 
 use derive_more::{Display, From};
 use log::{debug, info, warn};
-use openssl::pkey::{PKey, Private, Public};
+use openssl::{
+    pkey::{PKey, Private, Public},
+    rand::rand_bytes,
+    rsa::Rsa,
+};
 
-use super::protocol::{FromPacket, Handshake, IntoPacket, Message, Packet};
+use super::protocol::{
+    AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE, RsaHandshake,
+};
 
 #[derive(Debug, Display, From)]
 pub enum ProtocolError {
@@ -25,63 +31,86 @@ pub struct Channel {
     stream: Mutex<TcpStream>,
     name: String,
     messages: Mutex<Vec<Message>>,
-    our_private_key: PKey<Private>,
-    their_public_key: PKey<Public>,
+    our_rsa_private_key: PKey<Private>,
+    our_aes_key: [u8; AES_KEY_SIZE],
+    their_rsa_public_key: PKey<Public>,
+    their_aes_key: [u8; AES_KEY_SIZE],
 }
 
 impl Channel {
     pub fn new(mut stream: TcpStream, name: Option<String>) -> Option<Self> {
         // ok so first we generate a new private key for us
-        let private_key = PKey::generate_ed25519().unwrap();
+        let private_rsa_key = PKey::from_rsa(Rsa::generate(RSA_KEY_SIZE).unwrap()).unwrap();
         info!("Generated new private key");
 
         // then we send it to the other party
-        let our_handshake: Packet = Handshake::new(&private_key).into_packet(&private_key);
+        let our_handshake = RsaHandshake::new(&private_rsa_key).into_packet(&private_rsa_key);
         our_handshake.to_writer(&mut stream).unwrap();
         debug!("Sent our handshake");
 
         // then we receive the other party's handshake
         let their_handshake_packet = Packet::from_reader(&mut stream).unwrap();
-        let their_handshake: Handshake = Handshake::from_packet(&their_handshake_packet);
+        let their_handshake = RsaHandshake::from_packet(&their_handshake_packet);
         // and get the public key from that handshake
         let their_public_key = their_handshake.public_key();
         info!("Received their public key");
 
         // might as well verify the signature so that we know that the key they have sent is valid
         if !their_handshake_packet.verify(&their_public_key) {
-            warn!("Their public key is invalid");
+            warn!("Their handshake is invalid");
             None
         } else {
-            Some(Self::with_keys(stream, private_key, their_public_key, name))
+            Self::with_keys(stream, private_rsa_key, their_public_key, name)
         }
     }
 
     pub fn with_keys(
-        stream: TcpStream,
+        mut stream: TcpStream,
         our_key: PKey<Private>,
         their_key: PKey<Public>,
         name: Option<String>,
-    ) -> Self {
+    ) -> Option<Self> {
+        let mut our_aes_key = [0; AES_KEY_SIZE];
+        rand_bytes(&mut our_aes_key).unwrap();
+
+        let our_aes_handshake = AesHandshake::new(&our_aes_key, &their_key)
+            .unwrap()
+            .into_packet(&our_key);
+        our_aes_handshake.to_writer(&mut stream).unwrap();
+
+        let their_aes_handshake_packet = Packet::from_reader(&mut stream).unwrap();
+        if !their_aes_handshake_packet.verify(&their_key) {
+            warn!("Their AES handshake is invalid");
+            return None;
+        }
+        let their_aes_key = AesHandshake::from_packet(&their_aes_handshake_packet)
+            .decrypt_key(&our_key)
+            .unwrap();
+
         let name = name.unwrap_or(stream.peer_addr().unwrap().to_string());
         info!("Creating new channel with name: {}", name);
 
-        Self {
+        Some(Self {
             stream: Mutex::new(stream),
             name: name,
             messages: Mutex::new(Vec::new()),
-            our_private_key: our_key,
-            their_public_key: their_key,
-        }
+            our_rsa_private_key: our_key,
+            our_aes_key: our_aes_key,
+            their_rsa_public_key: their_key,
+            their_aes_key: their_aes_key,
+        })
     }
 
     pub fn listen(&self) -> Result<(), ProtocolError> {
         let mut stream = self.stream.lock().unwrap().try_clone()?;
         loop {
-            let packet = Packet::from_reader(&mut stream)?;
-            if !packet.verify(&self.their_public_key) {
+            let mut packet = Packet::from_reader(&mut stream)?;
+            packet.decrypt(&self.our_aes_key)?;
+            if !packet.verify(&self.their_rsa_public_key) {
                 warn!("Received packet with invalid signature");
                 return Err(ProtocolError::VerificationError);
             }
+
             let message: Message = Message::from_packet(&packet);
             debug!("Received message");
             self.messages.lock().unwrap().push(message);
@@ -89,7 +118,8 @@ impl Channel {
     }
 
     pub fn send_message(&self, message: Message) -> Result<(), ProtocolError> {
-        let packet = message.into_packet(&self.our_private_key);
+        let mut packet = message.into_packet(&self.our_rsa_private_key);
+        packet.encrypt(&self.their_aes_key)?;
         self.messages.lock().unwrap().push(message);
         packet.to_writer(&mut self.stream.lock().unwrap().deref())?;
         Ok(())

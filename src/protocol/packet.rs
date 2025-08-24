@@ -5,8 +5,11 @@ use integer_encoding::{VarIntReader, VarIntWriter};
 use openssl::{
     pkey::{PKey, Private, Public},
     sign::{Signer, Verifier},
+    symm::{Cipher, decrypt, encrypt},
 };
 use serde::{Deserialize, Serialize};
+
+use super::AES_KEY_SIZE;
 
 fn read_buffer<R: Read>(reader: &mut R) -> Result<Vec<u8>, io::Error> {
     let length = reader.read_varint::<u32>()?;
@@ -44,6 +47,20 @@ impl Packet {
     pub fn to_writer<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
         write_buffer(writer, &self.data)?;
         write_buffer(writer, &self.signature)?;
+        Ok(())
+    }
+
+    pub fn encrypt(&mut self, other_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
+        let cipher = Cipher::aes_256_cbc();
+        self.data = encrypt(cipher, other_aes_key, None, &self.data)?;
+        self.signature = encrypt(cipher, other_aes_key, None, &self.signature)?;
+        Ok(())
+    }
+
+    pub fn decrypt(&mut self, our_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
+        let cipher = Cipher::aes_256_cbc();
+        self.data = decrypt(cipher, our_aes_key, None, &self.data)?;
+        self.signature = decrypt(cipher, our_aes_key, None, &self.signature)?;
         Ok(())
     }
 
