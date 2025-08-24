@@ -35,9 +35,7 @@ impl AesHandshake {
         let mut decrypted_buff = vec![0; decryptor.decrypt_len(&self.encrypted_aes_key)?];
         decryptor.decrypt(&self.encrypted_aes_key, &mut decrypted_buff)?;
 
-        let mut key = [0; AES_KEY_SIZE];
-        key.copy_from_slice(&decrypted_buff[..AES_KEY_SIZE]);
-        Ok(key)
+        Ok(decrypted_buff[..AES_KEY_SIZE].try_into().unwrap())
     }
 }
 
