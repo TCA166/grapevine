@@ -12,6 +12,7 @@ use super::protocol::{
     AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE, RsaHandshake,
 };
 
+/// An error that has occured during [Packet] exchange
 #[derive(Debug, Display, From)]
 pub enum ProtocolError {
     IoError(io::Error),
@@ -27,17 +28,23 @@ impl error::Error for ProtocolError {
     }
 }
 
+/// A channel for exchanging messages, through a specified stream
 pub struct Channel {
     stream: Mutex<TcpStream>,
     name: String,
     messages: Mutex<Vec<Message>>,
+    /// Our key for signing and AES key decryption
     our_rsa_private_key: PKey<Private>,
+    /// Our key for encrypting messages
     our_aes_key: [u8; AES_KEY_SIZE],
+    /// The key for checking the signature of messages, and encrypting the AES key
     their_rsa_public_key: PKey<Public>,
+    /// The key for decrypting messages
     their_aes_key: [u8; AES_KEY_SIZE],
 }
 
 impl Channel {
+    /// Create a new channel, with the given stream and name
     pub fn new(mut stream: TcpStream, name: Option<String>) -> Option<Self> {
         // ok so first we generate a new private key for us
         let private_rsa_key = PKey::from_rsa(Rsa::generate(RSA_KEY_SIZE).unwrap()).unwrap();
@@ -64,6 +71,7 @@ impl Channel {
         }
     }
 
+    /// Create a new channel, assuming the RSA handshake has already happened
     pub fn with_keys(
         mut stream: TcpStream,
         our_key: PKey<Private>,
@@ -101,8 +109,10 @@ impl Channel {
         })
     }
 
+    /// Listen for incoming messages on the channel
+    /// This function will continuously listen for incoming messages until an error occurs
     pub fn listen(&self) -> Result<(), ProtocolError> {
-        let mut stream = self.stream.lock().unwrap().try_clone()?;
+        let mut stream = self.stream.lock().unwrap().try_clone()?; // important to avoid deadlocks
         loop {
             let mut packet = Packet::from_reader(&mut stream)?;
             packet.decrypt(&self.our_aes_key)?;
@@ -117,6 +127,7 @@ impl Channel {
         }
     }
 
+    /// Send a message to the channel
     pub fn send_message(&self, message: Message) -> Result<(), ProtocolError> {
         let mut packet = message.into_packet(&self.our_rsa_private_key);
         packet.encrypt(&self.their_aes_key)?;

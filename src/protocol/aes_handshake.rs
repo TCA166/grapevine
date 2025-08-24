@@ -11,12 +11,15 @@ use super::AES_KEY_SIZE;
 
 const PADDING: Padding = Padding::PKCS1_OAEP;
 
+/// A handshake that delivers an encrypted AES key of one party.
+/// Intended to be used after the [RSA handshake](super::RsaHandshake).
 #[derive(Serialize, Deserialize)]
 pub struct AesHandshake {
     encrypted_aes_key: Vec<u8>,
 }
 
 impl AesHandshake {
+    /// Creates a new instance of the AES handshake packet
     pub fn new(aes_key: &[u8; AES_KEY_SIZE], public_key: &PKey<Public>) -> Result<Self, io::Error> {
         let mut encryptor = Encrypter::new(public_key)?;
         encryptor.set_rsa_padding(PADDING)?;
@@ -26,6 +29,7 @@ impl AesHandshake {
         Ok(AesHandshake { encrypted_aes_key })
     }
 
+    /// Parses the packet and decrypts the AES key
     pub fn decrypt_key(
         &self,
         private_key: &PKey<Private>,

@@ -1,18 +1,23 @@
 use openssl::pkey::{PKey, Private, Public};
 use serde::{Deserialize, Serialize};
 
+/// A handshake that delivers the public key of one party
+/// Intended to be the first thing sent, optionally of course in case the
+/// parties have already exchanged public keys.
 #[derive(Serialize, Deserialize)]
 pub struct RsaHandshake {
     public_key: Vec<u8>,
 }
 
 impl RsaHandshake {
+    /// Creates a new handshake, utilizing the given private key.
     pub fn new(private_key: &PKey<Private>) -> Self {
         Self {
             public_key: private_key.public_key_to_pem().unwrap(),
         }
     }
 
+    /// Parse the public key from the handshake.
     pub fn public_key(&self) -> PKey<Public> {
         PKey::public_key_from_pem(&self.public_key).unwrap()
     }

@@ -8,6 +8,7 @@ use log::warn;
 
 use super::channel::Channel;
 
+/// 'Server' thread, that listens for incoming connections and creates new channels for each connection.
 pub fn listener_thread<A: ToSocketAddrs>(addr: A, channels: Arc<Mutex<Vec<Arc<Channel>>>>) {
     let listener = TcpListener::bind(addr).unwrap();
 

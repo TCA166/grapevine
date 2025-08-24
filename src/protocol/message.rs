@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
+/// General purpose message packet
 pub struct Message {
     content: String,
     timestamp: DateTime<Utc>,
@@ -8,6 +9,8 @@ pub struct Message {
 }
 
 impl Message {
+    /// Create a new message packet, implicitly setting the timestamp, and
+    /// identifying it as sent by us
     pub fn new(content: String) -> Self {
         let timestamp = Utc::now();
         Self {
@@ -17,14 +20,17 @@ impl Message {
         }
     }
 
+    /// Check if the message was sent by us
     pub fn is_theirs(&self) -> bool {
         self.theirs
     }
 
+    /// Get the timestamp of the message
     pub fn timestamp(&self) -> &DateTime<Utc> {
         &self.timestamp
     }
 
+    /// Get the content of the message
     pub fn content(&self) -> &String {
         &self.content
     }

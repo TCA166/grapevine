@@ -27,6 +27,9 @@ fn write_buffer<W: Write>(writer: &mut W, data: &[u8]) -> std::io::Result<()> {
     writer.write_all(data)
 }
 
+/// Structured primitive data carrier
+/// Each packet is signed, and optionally encrypted. If encrypted it also
+/// carries the `iv`.
 pub struct Packet {
     data: Vec<u8>,
     signature: Vec<u8>,
@@ -34,6 +37,7 @@ pub struct Packet {
 }
 
 impl Packet {
+    /// Creates a new packet based on the data, and signs it with the provided private key.
     pub fn from_data(data: Vec<u8>, private_key: &PKey<Private>) -> Self {
         let mut signer = Signer::new(MessageDigest::sha256(), private_key).unwrap();
         let signature = signer.sign_oneshot_to_vec(&data).unwrap();
@@ -45,6 +49,7 @@ impl Packet {
         }
     }
 
+    /// Reads a packet from a reader.
     pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, io::Error> {
         let data = read_buffer(reader)?;
         let signature = read_buffer(reader)?;
@@ -62,6 +67,7 @@ impl Packet {
         })
     }
 
+    /// Writes a packet to a writer.
     pub fn to_writer<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
         write_buffer(writer, &self.data)?;
         write_buffer(writer, &self.signature)?;
@@ -73,6 +79,7 @@ impl Packet {
         Ok(())
     }
 
+    /// Encrypts the packet
     pub fn encrypt(&mut self, other_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
         let cipher = Cipher::aes_256_cbc();
         let mut iv = [0; AES_IV_SIZE];
@@ -84,6 +91,7 @@ impl Packet {
         Ok(())
     }
 
+    /// Decrypts the packet
     pub fn decrypt(&mut self, our_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
         let cipher = Cipher::aes_256_cbc();
         let iv: Option<&[u8]> = if let Some(iv) = &self.iv {
@@ -98,6 +106,7 @@ impl Packet {
         Ok(())
     }
 
+    /// Verifies the signature of the packet
     pub fn verify(&self, public_key: &PKey<Public>) -> bool {
         let mut verifier = Verifier::new(MessageDigest::sha256(), public_key).unwrap();
         verifier
