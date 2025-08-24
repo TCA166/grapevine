@@ -11,3 +11,6 @@ egui = "0.32.1"
 integer-encoding = "4.0.2"
 openssl = "0.10.73"
 serde = "1.0.219"
+derive_more = { version = "2.0.1", features = ["from", "display"] }
+egui-notify = "0.20.0"
+log = "0.4.27"

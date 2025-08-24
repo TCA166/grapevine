@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 
 use bitcode::{deserialize, serialize};
 use integer_encoding::{VarIntReader, VarIntWriter};
@@ -8,12 +8,12 @@ use openssl::{
 };
 use serde::{Deserialize, Serialize};
 
-fn read_buffer<R: Read>(reader: &mut R) -> Option<Vec<u8>> {
-    let length = reader.read_varint::<u32>().ok()?;
+fn read_buffer<R: Read>(reader: &mut R) -> Result<Vec<u8>, io::Error> {
+    let length = reader.read_varint::<u32>()?;
     let mut data = vec![0; length as usize];
-    reader.read_exact(&mut data).ok()?;
+    reader.read_exact(&mut data)?;
 
-    Some(data)
+    Ok(data)
 }
 
 fn write_buffer<W: Write>(writer: &mut W, data: &[u8]) -> std::io::Result<()> {
@@ -34,14 +34,14 @@ impl Packet {
         Packet { data, signature }
     }
 
-    pub fn from_reader<R: Read>(reader: &mut R) -> Option<Self> {
+    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, io::Error> {
         let data = read_buffer(reader)?;
         let signature = read_buffer(reader)?;
 
-        Some(Packet { data, signature })
+        Ok(Packet { data, signature })
     }
 
-    pub fn to_writer<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    pub fn to_writer<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
         write_buffer(writer, &self.data)?;
         write_buffer(writer, &self.signature)?;
         Ok(())
@@ -56,12 +56,12 @@ impl Packet {
 }
 
 pub trait IntoPacket {
-    fn into_packet(self, private_key: &PKey<Private>) -> Packet;
+    fn into_packet(&self, private_key: &PKey<Private>) -> Packet;
 }
 
 impl<T: Serialize> IntoPacket for T {
-    fn into_packet(self, private_key: &PKey<Private>) -> Packet {
-        let data = serialize(&self).unwrap();
+    fn into_packet(&self, private_key: &PKey<Private>) -> Packet {
+        let data = serialize(self).unwrap();
         Packet::from_data(data, private_key)
     }
 }

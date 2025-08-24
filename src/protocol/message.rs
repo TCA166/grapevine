@@ -1,28 +1,62 @@
-use std::fmt::Display;
-
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
-#[derive(Serialize, Deserialize)]
 pub struct Message {
-    sender: String,
     content: String,
     timestamp: DateTime<Utc>,
+    theirs: bool,
 }
 
 impl Message {
-    pub fn new(sender: String, content: String) -> Self {
+    pub fn new(content: String) -> Self {
         let timestamp = Utc::now();
         Self {
-            sender,
             content,
             timestamp,
+            theirs: false,
         }
+    }
+
+    pub fn is_theirs(&self) -> bool {
+        self.theirs
+    }
+
+    pub fn timestamp(&self) -> &DateTime<Utc> {
+        &self.timestamp
+    }
+
+    pub fn content(&self) -> &String {
+        &self.content
     }
 }
 
-impl Display for Message {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {}: {}", self.timestamp, self.sender, self.content)
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("Message", 2)?;
+        s.serialize_field("content", &self.content)?;
+        s.serialize_field("timestamp", &self.timestamp)?;
+        s.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct MessageHelper {
+            content: String,
+            timestamp: DateTime<Utc>,
+        }
+        let helper = MessageHelper::deserialize(deserializer)?;
+        Ok(Message {
+            content: helper.content,
+            timestamp: helper.timestamp,
+            theirs: true,
+        })
     }
 }
