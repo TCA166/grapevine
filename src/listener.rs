@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::channel::Channel;
+use super::{channel::Channel, events::HandleOnMessage};
 
 pub struct PendingConnection {
     stream: TcpStream,
@@ -12,8 +12,12 @@ pub struct PendingConnection {
 }
 
 impl PendingConnection {
-    pub fn accept(self, name: Option<String>) -> Result<Option<Channel>, io::Error> {
-        Channel::new(self.stream, name)
+    pub fn accept(
+        self,
+        name: Option<String>,
+        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+    ) -> Result<Option<Channel>, io::Error> {
+        Channel::new(self.stream, name, message_handler)
     }
 
     pub fn reject(self) {

@@ -3,7 +3,7 @@ use std::{
     net::{AddrParseError, Ipv4Addr},
     num::ParseIntError,
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use derive_more::{Display, From};
@@ -12,12 +12,11 @@ use egui::{
     TopBottomPanel, Ui,
     containers::menu::{MenuBar, MenuConfig},
 };
-use egui_notify::Toasts;
-use log::error;
 
 use super::{
     app::GrapevineApp,
     channel::{Channel, ProtocolError},
+    handler::EventHandler,
     protocol::Message,
 };
 
@@ -42,10 +41,10 @@ impl error::Error for ChannelFormError {
     }
 }
 
-#[derive(Default)]
 pub struct GrapevineUI {
     // encapsulations
     app: GrapevineApp,
+    event_handler: Arc<Mutex<EventHandler>>,
     // input
     channel_name_input: String,
     channel_ip_input: String,
@@ -53,8 +52,24 @@ pub struct GrapevineUI {
     channel_message_input: String,
     // Vis
     selected_channel: Option<Arc<Channel>>,
-    //logging
-    toasts: Toasts,
+}
+
+impl GrapevineUI {
+    pub fn new(mut app: GrapevineApp) -> Self {
+        let event_handler = Arc::new(Mutex::new(EventHandler::default()));
+
+        app.set_message_handler(event_handler.clone());
+
+        Self {
+            app,
+            event_handler,
+            channel_name_input: String::new(),
+            channel_ip_input: String::new(),
+            channel_port_input: String::new(),
+            channel_message_input: String::new(),
+            selected_channel: None,
+        }
+    }
 }
 
 impl GrapevineUI {
@@ -92,9 +107,10 @@ impl GrapevineUI {
             .inner
             .transpose()
         {
-            let err_msg = format!("Connection error: {}", e);
-            error!("{}", err_msg);
-            self.toasts.error(&err_msg);
+            self.event_handler
+                .lock()
+                .unwrap()
+                .error(&format!("Connection error: {}", e));
         }
 
         // first we clear the pending connections
@@ -104,26 +120,20 @@ impl GrapevineUI {
                     ui.label(pending.name());
 
                     if ui.small_button("✔").clicked() {
-                        match pending.accept(None) {
-                            Ok(channel) => {
-                                match channel {
-                                    Some(channel) => {
-                                        self.app.add_channel(channel);
-                                        self.toasts.info("Connection accepted");
-                                    }
-                                    None => {
-                                        self.toasts.warning("Connection could not be verified");
-                                    }
-                                };
-                            }
-                            Err(err) => {
-                                let error_message = format!("Failed to accept connection: {}", err);
-                                error!("{}", error_message);
-                                self.toasts.error(error_message);
-                            }
-                        }
+                        match self.app.add_channel(pending, None) {
+                            Ok(_) => self.event_handler.lock().unwrap().info("Channel added"),
+                            Err(e) => self
+                                .event_handler
+                                .lock()
+                                .unwrap()
+                                .error(&format!("Failed to add channel: {}", e)),
+                        };
                     } else if ui.small_button("✘").clicked() {
                         pending.reject();
+                        self.event_handler
+                            .lock()
+                            .unwrap()
+                            .info("Connection rejected");
                     } else {
                         // keep the pending connection if nothing was done
                         self.app.add_pending(pending);
@@ -160,8 +170,10 @@ impl GrapevineUI {
                         if !self.channel_message_input.is_empty() {
                             let message = Message::new(mem::take(&mut self.channel_message_input));
                             if let Err(e) = channel.send_message(message) {
-                                error!("Message sending error: {}", e);
-                                self.toasts.error(&format!("Message sending error: {}", e));
+                                self.event_handler
+                                    .lock()
+                                    .unwrap()
+                                    .error(&format!("Message sending error: {}", e));
                             }
                         }
                         resp.request_focus();
@@ -187,7 +199,7 @@ impl eframe::App for GrapevineUI {
 
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
 
-        self.toasts.show(ctx);
+        self.event_handler.lock().unwrap().ui(ctx);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {}

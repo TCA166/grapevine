@@ -1,15 +1,23 @@
-use std::{error, io, net::TcpStream, ops::Deref, sync::Mutex};
+use std::{
+    error, io,
+    net::TcpStream,
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
 use derive_more::{Display, From};
-use log::{debug, info, warn};
 use openssl::{
     pkey::{PKey, Private, Public},
     rand::rand_bytes,
     rsa::Rsa,
 };
 
-use super::protocol::{
-    AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE, RsaHandshake,
+use super::{
+    events::HandleOnMessage,
+    protocol::{
+        AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE,
+        RsaHandshake,
+    },
 };
 
 /// An error that has occured during [Packet] exchange
@@ -41,33 +49,40 @@ pub struct Channel {
     their_rsa_public_key: PKey<Public>,
     /// The key for decrypting messages
     their_aes_key: [u8; AES_KEY_SIZE],
+    message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
 }
 
 impl Channel {
     /// Create a new channel, with the given stream and name
-    pub fn new(mut stream: TcpStream, name: Option<String>) -> Result<Option<Self>, io::Error> {
+    pub fn new(
+        mut stream: TcpStream,
+        name: Option<String>,
+        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+    ) -> Result<Option<Self>, io::Error> {
         // ok so first we generate a new private key for us
         let private_rsa_key = PKey::from_rsa(Rsa::generate(RSA_KEY_SIZE)?)?;
-        info!("Generated new private key");
 
         // then we send it to the other party
         let our_handshake = RsaHandshake::new(&private_rsa_key).into_packet(&private_rsa_key);
         our_handshake.to_writer(&mut stream)?;
-        debug!("Sent our handshake");
 
         // then we receive the other party's handshake
         let their_handshake_packet = Packet::from_reader(&mut stream)?;
         let their_handshake = RsaHandshake::from_packet(&their_handshake_packet);
         // and get the public key from that handshake
         let their_public_key = their_handshake.public_key();
-        info!("Received their public key");
 
         // might as well verify the signature so that we know that the key they have sent is valid
         if !their_handshake_packet.verify(&their_public_key) {
-            warn!("Their handshake is invalid");
             Ok(None)
         } else {
-            Self::with_keys(stream, private_rsa_key, their_public_key, name)
+            Self::with_keys(
+                stream,
+                private_rsa_key,
+                their_public_key,
+                name,
+                message_handler,
+            )
         }
     }
 
@@ -77,6 +92,7 @@ impl Channel {
         our_key: PKey<Private>,
         their_key: PKey<Public>,
         name: Option<String>,
+        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
     ) -> Result<Option<Self>, io::Error> {
         let mut our_aes_key = [0; AES_KEY_SIZE];
         rand_bytes(&mut our_aes_key)?;
@@ -88,7 +104,6 @@ impl Channel {
 
         let their_aes_handshake_packet = Packet::from_reader(&mut stream)?;
         if !their_aes_handshake_packet.verify(&their_key) {
-            warn!("Their AES handshake is invalid");
             return Ok(None);
         }
         let their_aes_key = AesHandshake::from_packet(&their_aes_handshake_packet)
@@ -96,7 +111,6 @@ impl Channel {
             .unwrap();
 
         let name = name.unwrap_or(stream.peer_addr().unwrap().to_string());
-        info!("Creating new channel with name: {}", name);
 
         Ok(Some(Self {
             stream: Mutex::new(stream),
@@ -106,6 +120,7 @@ impl Channel {
             our_aes_key: our_aes_key,
             their_rsa_public_key: their_key,
             their_aes_key: their_aes_key,
+            message_handler: message_handler,
         }))
     }
 
@@ -117,12 +132,15 @@ impl Channel {
             let mut packet = Packet::from_reader(&mut stream)?;
             packet.decrypt(&self.our_aes_key)?;
             if !packet.verify(&self.their_rsa_public_key) {
-                warn!("Received packet with invalid signature");
                 return Err(ProtocolError::VerificationError);
             }
 
             let message: Message = Message::from_packet(&packet);
-            debug!("Received message");
+
+            if let Some(handler) = self.message_handler.as_ref() {
+                handler.lock().unwrap().on_message(&message, self);
+            }
+
             self.messages.lock().unwrap().push(message);
         }
     }

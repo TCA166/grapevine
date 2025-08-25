@@ -1,10 +1,17 @@
 mod app;
+use std::net::Ipv4Addr;
+
+use app::GrapevineApp;
 
 mod listener;
 
 mod channel;
 
 mod protocol;
+
+mod events;
+
+mod handler;
 
 mod ui;
 
@@ -18,6 +25,11 @@ fn main() -> eframe::Result {
     eframe::run_native(
         env!("CARGO_PKG_NAME"),
         options,
-        Box::new(|cc| Ok(Box::<GrapevineUI>::default())),
+        Box::new(|cc| {
+            Ok(Box::new(GrapevineUI::new(GrapevineApp::new(
+                Ipv4Addr::new(0, 0, 0, 0),
+                5000,
+            ))))
+        }),
     )
 }

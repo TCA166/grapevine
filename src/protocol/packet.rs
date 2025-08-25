@@ -2,7 +2,6 @@ use std::io::{self, Read, Write};
 
 use bitcode::{deserialize, serialize};
 use integer_encoding::{VarIntReader, VarIntWriter};
-use log::warn;
 use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private, Public},
@@ -97,7 +96,6 @@ impl Packet {
         let iv: Option<&[u8]> = if let Some(iv) = &self.iv {
             Some(iv)
         } else {
-            warn!("Missing IV");
             None
         };
 
