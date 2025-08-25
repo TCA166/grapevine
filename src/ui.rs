@@ -9,7 +9,7 @@ use std::{
 use derive_more::{Display, From};
 use egui::{
     Align, Button, CentralPanel, Context, Frame, Layout, PopupCloseBehavior, RichText, SidePanel,
-    TopBottomPanel,
+    TopBottomPanel, Ui,
     containers::menu::{MenuBar, MenuConfig},
 };
 use egui_notify::Toasts;
@@ -57,6 +57,121 @@ pub struct GrapevineUI {
     toasts: Toasts,
 }
 
+impl GrapevineUI {
+    fn channels_panel(&mut self, ui: &mut Ui) {
+        for channel in self.app.channels().lock().unwrap().iter() {
+            let selected = self.selected_channel.as_ref().is_some_and(|c| c == channel);
+            let button = Button::new(RichText::new(channel.name())).selected(selected);
+            if ui.add(button).clicked() {
+                self.selected_channel = Some(channel.clone());
+            }
+        }
+
+        if let Err(e) = ui
+            .menu_button("New Channel", |ui| -> Result<(), ChannelFormError> {
+                ui.label("Channel Name");
+                ui.text_edit_singleline(&mut self.channel_name_input);
+
+                ui.label("IP");
+                ui.text_edit_singleline(&mut self.channel_ip_input);
+
+                ui.label("Port");
+                ui.text_edit_singleline(&mut self.channel_port_input);
+
+                if ui.button("Create").clicked() {
+                    let port: u16 = self.channel_port_input.parse()?;
+                    let ip = Ipv4Addr::from_str(&self.channel_ip_input)?;
+                    let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
+
+                    self.app.new_channel(ip, port, name)?;
+
+                    ui.close();
+                }
+                Ok(())
+            })
+            .inner
+            .transpose()
+        {
+            let err_msg = format!("Connection error: {}", e);
+            error!("{}", err_msg);
+            self.toasts.error(&err_msg);
+        }
+
+        // first we clear the pending connections
+        for pending in self.app.inspect_pending() {
+            Frame::group(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(pending.name());
+
+                    if ui.small_button("✔").clicked() {
+                        match pending.accept(None) {
+                            Ok(channel) => {
+                                match channel {
+                                    Some(channel) => {
+                                        self.app.add_channel(channel);
+                                        self.toasts.info("Connection accepted");
+                                    }
+                                    None => {
+                                        self.toasts.warning("Connection could not be verified");
+                                    }
+                                };
+                            }
+                            Err(err) => {
+                                let error_message = format!("Failed to accept connection: {}", err);
+                                error!("{}", error_message);
+                                self.toasts.error(error_message);
+                            }
+                        }
+                    } else if ui.small_button("✘").clicked() {
+                        pending.reject();
+                    } else {
+                        // keep the pending connection if nothing was done
+                        self.app.add_pending(pending);
+                    }
+                })
+            });
+        }
+    }
+
+    fn central_panel(&mut self, ctx: &Context, ui: &mut Ui) {
+        if let Some(channel) = &self.selected_channel {
+            for message in channel.messages().lock().unwrap().iter() {
+                let (author, layout) = if message.is_theirs() {
+                    (channel.name(), Layout::left_to_right(Align::TOP))
+                } else {
+                    (OUR_NAME, Layout::right_to_left(Align::TOP))
+                };
+                let text = format!("{}: {}", author, message.content());
+
+                ui.with_layout(layout, |ui| {
+                    Frame::group(ui.style())
+                        .show(ui, |ui| {
+                            ui.label(text);
+                        })
+                        .response
+                        .on_hover_text(message.timestamp().format("%Y-%m-%d %H:%M:%S").to_string());
+                });
+            }
+
+            TopBottomPanel::bottom("message_panel").show(ctx, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    let resp = ui.text_edit_singleline(&mut self.channel_message_input);
+                    if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        if !self.channel_message_input.is_empty() {
+                            let message = Message::new(mem::take(&mut self.channel_message_input));
+                            if let Err(e) = channel.send_message(message) {
+                                error!("Message sending error: {}", e);
+                                self.toasts.error(&format!("Message sending error: {}", e));
+                            }
+                        }
+                        resp.request_focus();
+                    }
+                })
+            });
+        }
+    }
+}
+
 impl eframe::App for GrapevineUI {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         SidePanel::left("Channels").show(ctx, |ui| {
@@ -66,134 +181,11 @@ impl eframe::App for GrapevineUI {
                     MenuConfig::default().close_behavior(PopupCloseBehavior::CloseOnClickOutside),
                 )
                 .ui(ui, |ui| {
-                    ui.vertical_centered_justified(|ui| {
-                        for channel in self.app.channels().lock().unwrap().iter() {
-                            let selected =
-                                self.selected_channel.as_ref().is_some_and(|c| c == channel);
-                            let button =
-                                Button::new(RichText::new(channel.name())).selected(selected);
-                            if ui.add(button).clicked() {
-                                self.selected_channel = Some(channel.clone());
-                            }
-                        }
-
-                        if let Err(e) = ui
-                            .menu_button("New Channel", |ui| -> Result<(), ChannelFormError> {
-                                ui.label("Channel Name");
-                                ui.text_edit_singleline(&mut self.channel_name_input);
-
-                                ui.label("IP");
-                                ui.text_edit_singleline(&mut self.channel_ip_input);
-
-                                ui.label("Port");
-                                ui.text_edit_singleline(&mut self.channel_port_input);
-
-                                if ui.button("Create").clicked() {
-                                    let port: u16 = self.channel_port_input.parse()?;
-                                    let ip = Ipv4Addr::from_str(&self.channel_ip_input)?;
-                                    let name = Some(self.channel_name_input.clone())
-                                        .filter(|s| !s.is_empty());
-
-                                    self.app.new_channel(ip, port, name)?;
-
-                                    ui.close();
-                                }
-                                Ok(())
-                            })
-                            .inner
-                            .transpose()
-                        {
-                            let err_msg = format!("Connection error: {}", e);
-                            error!("{}", err_msg);
-                            self.toasts.error(&err_msg);
-                        }
-
-                        // pending connections shenanigans
-                        {
-                            // first we clear the pending connections
-                            for pending in self.app.inspect_pending() {
-                                Frame::group(ui.style()).show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(pending.name());
-
-                                        if ui.small_button("✔").clicked() {
-                                            match pending.accept(None) {
-                                                Ok(channel) => {
-                                                    match channel {
-                                                        Some(channel) => {
-                                                            self.app.add_channel(channel);
-                                                            self.toasts.info("Connection accepted");
-                                                        }
-                                                        None => {
-                                                            self.toasts.warning(
-                                                                "Connection could not be verified",
-                                                            );
-                                                        }
-                                                    };
-                                                }
-                                                Err(err) => {
-                                                    let error_message = format!(
-                                                        "Failed to accept connection: {}",
-                                                        err
-                                                    );
-                                                    error!("{}", error_message);
-                                                    self.toasts.error(error_message);
-                                                }
-                                            }
-                                        } else if ui.small_button("✘").clicked() {
-                                            pending.reject();
-                                        } else {
-                                            // keep the pending connection if nothing was done
-                                            self.app.add_pending(pending);
-                                        }
-                                    })
-                                });
-                            }
-                        }
-                    })
+                    ui.vertical_centered_justified(|ui| self.channels_panel(ui))
                 });
         });
 
-        CentralPanel::default().show(ctx, |ui| {
-            if let Some(channel) = &self.selected_channel {
-                for message in channel.messages().lock().unwrap().iter() {
-                    let (author, layout) = if message.is_theirs() {
-                        (channel.name(), Layout::left_to_right(Align::TOP))
-                    } else {
-                        (OUR_NAME, Layout::right_to_left(Align::TOP))
-                    };
-                    let text = format!("{}: {}", author, message.content());
-
-                    ui.with_layout(layout, |ui| {
-                        Frame::group(ui.style())
-                            .show(ui, |ui| {
-                                ui.label(text);
-                            })
-                            .response
-                            .on_hover_text(
-                                message.timestamp().format("%Y-%m-%d %H:%M:%S").to_string(),
-                            );
-                    });
-                }
-
-                TopBottomPanel::bottom("message_panel").show(ctx, |ui| {
-                    ui.vertical_centered_justified(|ui| {
-                        let resp = ui.text_edit_singleline(&mut self.channel_message_input);
-                        if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            if !self.channel_message_input.is_empty() {
-                                let message =
-                                    Message::new(mem::take(&mut self.channel_message_input));
-                                if let Err(e) = channel.send_message(message) {
-                                    error!("Message sending error: {}", e);
-                                    self.toasts.error(&format!("Message sending error: {}", e));
-                                }
-                            }
-                            resp.request_focus();
-                        }
-                    })
-                });
-            }
-        });
+        CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
 
         self.toasts.show(ctx);
     }
