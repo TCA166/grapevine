@@ -1,9 +1,8 @@
 use std::{
+    io,
     net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
     sync::{Arc, Mutex},
 };
-
-use log::warn;
 
 use super::channel::Channel;
 
@@ -13,14 +12,8 @@ pub struct PendingConnection {
 }
 
 impl PendingConnection {
-    pub fn accept(self, name: Option<String>) -> Option<Channel> {
-        let channel = Channel::new(self.stream, name);
-        if let Some(channel) = channel {
-            Some(channel)
-        } else {
-            warn!("Failed to accept connection");
-            None
-        }
+    pub fn accept(self, name: Option<String>) -> Result<Option<Channel>, io::Error> {
+        Channel::new(self.stream, name)
     }
 
     pub fn reject(self) {

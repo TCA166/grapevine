@@ -6,7 +6,9 @@ mod channel;
 
 mod protocol;
 
-use app::GrapevineApp;
+mod ui;
+
+use ui::GrapevineUI;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -16,6 +18,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         env!("CARGO_PKG_NAME"),
         options,
-        Box::new(|cc| Ok(Box::<GrapevineApp>::default())),
+        Box::new(|cc| Ok(Box::<GrapevineUI>::default())),
     )
 }
