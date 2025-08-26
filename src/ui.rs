@@ -1,6 +1,6 @@
 use std::{
     error, io, mem,
-    net::{AddrParseError, Ipv4Addr, SocketAddr},
+    net::{AddrParseError, SocketAddr},
     num::ParseIntError,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -8,8 +8,8 @@ use std::{
 
 use derive_more::{Display, From};
 use egui::{
-    Align, Button, CentralPanel, Context, Frame, Layout, PopupCloseBehavior, RichText, SidePanel,
-    TopBottomPanel, Ui,
+    Align, Button, CentralPanel, Context, Frame, Layout, PopupCloseBehavior, RichText, ScrollArea,
+    SidePanel, TopBottomPanel, Ui,
     containers::menu::{MenuBar, MenuConfig},
 };
 
@@ -48,6 +48,8 @@ pub struct GrapevineUI {
     channel_name_input: String,
     channel_addr_input: String,
     channel_message_input: String,
+    channel_private_key_path: String,
+    channel_recipient_key_path: String,
     // Vis
     selected_channel: Option<Arc<Channel>>,
 }
@@ -64,6 +66,8 @@ impl GrapevineUI {
             channel_name_input: String::new(),
             channel_addr_input: String::new(),
             channel_message_input: String::new(),
+            channel_private_key_path: String::new(),
+            channel_recipient_key_path: String::new(),
             selected_channel: None,
         }
     }
@@ -95,6 +99,15 @@ impl GrapevineUI {
 
                     ui.close();
                 }
+
+                ui.menu_button("Create with keys", |ui| {
+                    ui.label("Private key");
+                    ui.text_edit_singleline(&mut self.channel_private_key_path);
+
+                    ui.label("Recipient's public key");
+                    ui.text_edit_singleline(&mut self.channel_recipient_key_path);
+                });
+
                 Ok(())
             })
             .inner
@@ -109,7 +122,9 @@ impl GrapevineUI {
         // first we clear the pending connections
         for pending in self.app.inspect_pending() {
             Frame::group(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
+                let width = ui.available_width();
+                ui.horizontal_centered(|ui| {
+                    ui.set_min_width(width);
                     ui.label(pending.name());
 
                     if ui.small_button("✔").clicked() {
@@ -138,23 +153,29 @@ impl GrapevineUI {
 
     fn central_panel(&mut self, ctx: &Context, ui: &mut Ui) {
         if let Some(channel) = &self.selected_channel {
-            for message in channel.messages().lock().unwrap().iter() {
-                let (author, layout) = if message.is_theirs() {
-                    (channel.name(), Layout::left_to_right(Align::TOP))
-                } else {
-                    (OUR_NAME, Layout::right_to_left(Align::TOP))
-                };
-                let text = format!("{}: {}", author, message.content());
+            ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    for message in channel.messages().lock().unwrap().iter() {
+                        let (author, layout) = if message.is_theirs() {
+                            (channel.name(), Layout::left_to_right(Align::TOP))
+                        } else {
+                            (OUR_NAME, Layout::right_to_left(Align::TOP))
+                        };
+                        let text = format!("{}: {}", author, message.content());
 
-                ui.with_layout(layout, |ui| {
-                    Frame::group(ui.style())
-                        .show(ui, |ui| {
-                            ui.label(text);
-                        })
-                        .response
-                        .on_hover_text(message.timestamp().format("%Y-%m-%d %H:%M:%S").to_string());
+                        ui.with_layout(layout, |ui| {
+                            Frame::group(ui.style())
+                                .show(ui, |ui| {
+                                    ui.label(text);
+                                })
+                                .response
+                                .on_hover_text(
+                                    message.timestamp().format("%Y-%m-%d %H:%M:%S").to_string(),
+                                );
+                        });
+                    }
                 });
-            }
 
             TopBottomPanel::bottom("message_panel").show(ctx, |ui| {
                 ui.vertical_centered_justified(|ui| {
