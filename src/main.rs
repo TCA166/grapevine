@@ -1,5 +1,5 @@
 mod app;
-use std::net::Ipv4Addr;
+use std::{net::SocketAddr, str::FromStr};
 
 use app::GrapevineApp;
 
@@ -21,8 +21,7 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             Ok(Box::new(GrapevineUI::new(GrapevineApp::new(
-                Ipv4Addr::new(0, 0, 0, 0),
-                5000,
+                SocketAddr::from_str("0.0.0.0:5000").unwrap(),
             ))))
         }),
     )

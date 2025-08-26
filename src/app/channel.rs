@@ -45,6 +45,7 @@ pub struct Channel {
     their_rsa_public_key: PKey<Public>,
     /// The key for decrypting messages
     their_aes_key: [u8; AES_KEY_SIZE],
+    /// An abstract listener for new messages
     message_handler: Shared<dyn HandleMessage>,
 }
 
@@ -151,10 +152,12 @@ impl Channel {
         Ok(())
     }
 
+    /// Get the name of the channel
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Get the messages in the channel
     pub fn messages(&self) -> &Mutex<Vec<Message>> {
         &self.messages
     }

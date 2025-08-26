@@ -7,11 +7,14 @@ use super::{
     events::*,
 };
 
+/// An internal app wide event handler.
+/// Separated out of the app, so that it can be shared between threads
 pub struct EventHandler {
     channels: Shared<Vec<Arc<Channel>>>,
     recipients: Vec<Shared<dyn EventRecipient>>,
 }
 
+/// Can listen for events
 pub trait EventRecipient: Send {
     fn info(&mut self, message: &str);
 

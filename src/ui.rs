@@ -1,6 +1,6 @@
 use std::{
     error, io, mem,
-    net::{AddrParseError, Ipv4Addr},
+    net::{AddrParseError, Ipv4Addr, SocketAddr},
     num::ParseIntError,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -46,8 +46,7 @@ pub struct GrapevineUI {
     event_handler: Arc<Mutex<UiEventHandler>>,
     // input
     channel_name_input: String,
-    channel_ip_input: String,
-    channel_port_input: String,
+    channel_addr_input: String,
     channel_message_input: String,
     // Vis
     selected_channel: Option<Arc<Channel>>,
@@ -63,8 +62,7 @@ impl GrapevineUI {
             app,
             event_handler,
             channel_name_input: String::new(),
-            channel_ip_input: String::new(),
-            channel_port_input: String::new(),
+            channel_addr_input: String::new(),
             channel_message_input: String::new(),
             selected_channel: None,
         }
@@ -86,18 +84,14 @@ impl GrapevineUI {
                 ui.label("Channel Name");
                 ui.text_edit_singleline(&mut self.channel_name_input);
 
-                ui.label("IP");
-                ui.text_edit_singleline(&mut self.channel_ip_input);
-
-                ui.label("Port");
-                ui.text_edit_singleline(&mut self.channel_port_input);
+                ui.label("Address");
+                ui.text_edit_singleline(&mut self.channel_addr_input);
 
                 if ui.button("Create").clicked() {
-                    let port: u16 = self.channel_port_input.parse()?;
-                    let ip = Ipv4Addr::from_str(&self.channel_ip_input)?;
+                    let addr = SocketAddr::from_str(&self.channel_addr_input)?;
                     let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
 
-                    self.app.new_channel(ip, port, name)?;
+                    self.app.new_channel(addr, name)?;
 
                     ui.close();
                 }

@@ -5,6 +5,7 @@ use std::{
 
 use super::{Shared, channel::Channel, events::HandleMessage};
 
+/// A connection that has yet to be accepted
 pub struct PendingConnection {
     stream: TcpStream,
     name: String,

@@ -1,6 +1,6 @@
 use std::{
     io,
-    net::{Ipv4Addr, TcpStream},
+    net::{SocketAddr, TcpStream},
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
@@ -58,6 +58,8 @@ fn watchdog(
     }
 }
 
+/// App backend, with no reference to the UI.
+/// In theory this could be used in a CLI no problem.
 pub struct GrapevineApp {
     // core app
     channels: Shared<Vec<Arc<Channel>>>,
@@ -71,7 +73,9 @@ pub struct GrapevineApp {
 }
 
 impl GrapevineApp {
-    pub fn new(address: Ipv4Addr, port: u16) -> Self {
+    /// Create a new app instance, starting a server thread listening
+    /// on the given address and port
+    pub fn new(address: SocketAddr) -> Self {
         let channels = Arc::new(Mutex::new(Vec::new()));
         let pending_connections = Arc::new(Mutex::new(Vec::new()));
         let channel_threads = Arc::new(Mutex::new(Vec::new()));
@@ -79,34 +83,25 @@ impl GrapevineApp {
 
         let handler = Arc::new(Mutex::new(EventHandler::new(channels.clone())));
 
-        let res = Self {
+        Self {
             channels: channels,
             pending_connections: pending_connections.clone(),
-            server_thread: thread::spawn(move || {
-                listener_thread((address, port), pending_connections)
-            }),
+            server_thread: thread::spawn(move || listener_thread(address, pending_connections)),
             channel_threads: channel_threads.clone(),
             channel_creation_threads: channel_creation_threads.clone(),
             handler: handler.clone(),
             watchdog_thread: thread::spawn(move || {
                 watchdog(channel_threads, channel_creation_threads, handler)
             }),
-        };
-
-        return res;
+        }
     }
 
     /// Creates a new connection, in case of problems returns immediately.
-    /// Based on that connection, creates a new channel in a thread,
+    /// Based on that connection, creates a new [Channel] in a thread,
     /// in case of rejection that thread will be terminated, but no error will
     /// be returned here
-    pub fn new_channel(
-        &mut self,
-        ip: Ipv4Addr,
-        port: u16,
-        name: Option<String>,
-    ) -> Result<(), io::Error> {
-        let stream = TcpStream::connect((ip, port))?;
+    pub fn new_channel(&mut self, addr: SocketAddr, name: Option<String>) -> Result<(), io::Error> {
+        let stream = TcpStream::connect(addr)?;
 
         let channels = self.channels.clone();
         let message_handler = self.handler.clone();
@@ -134,7 +129,7 @@ impl GrapevineApp {
         Ok(())
     }
 
-    /// Adds a new channel to the application.
+    /// Accepts a [PendingConnection], and adds it as a [Channel] to the app
     pub fn add_channel(
         &mut self,
         pending: PendingConnection,
@@ -151,10 +146,12 @@ impl GrapevineApp {
         Ok(())
     }
 
+    /// Gets the list of currently ongoing channels
     pub fn channels(&self) -> &Arc<Mutex<Vec<Arc<Channel>>>> {
         &self.channels
     }
 
+    /// Clears and returns the list of currently pending connections
     pub fn inspect_pending(&mut self) -> Vec<PendingConnection> {
         self.pending_connections
             .lock()
@@ -163,10 +160,12 @@ impl GrapevineApp {
             .collect::<Vec<_>>()
     }
 
+    /// Adds a new pending connection
     pub fn add_pending(&mut self, pending: PendingConnection) {
         self.pending_connections.lock().unwrap().push(pending);
     }
 
+    /// Adds a listener that will receive all app wide events
     pub fn add_event_recipient(&mut self, recipient: Shared<dyn EventRecipient>) {
         self.handler.lock().unwrap().add_recipient(recipient);
     }
