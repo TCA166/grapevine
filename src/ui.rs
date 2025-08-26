@@ -1,12 +1,8 @@
 use std::{
-    error, io, mem,
-    net::{AddrParseError, SocketAddr},
-    num::ParseIntError,
-    str::FromStr,
+    mem,
     sync::{Arc, Mutex},
 };
 
-use derive_more::{Display, From};
 use egui::{
     Align, Button, CentralPanel, Context, Frame, Layout, PopupCloseBehavior, RichText, ScrollArea,
     SidePanel, TopBottomPanel, Ui,
@@ -14,61 +10,45 @@ use egui::{
 };
 
 use super::{
-    app::{Channel, GrapevineApp, ProtocolError},
+    app::{Channel, GrapevineApp},
+    components::{ChannelModal, SettingsModal},
     handler::UiEventHandler,
     protocol::Message,
+    settings::Settings,
 };
-
-const OUR_NAME: &str = "You";
-
-#[derive(Debug, From, Display)]
-enum ChannelFormError {
-    InvalidPort(ParseIntError),
-    InvalidIp(AddrParseError),
-    IoError(io::Error),
-    ProtocolError(ProtocolError),
-}
-
-impl error::Error for ChannelFormError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            Self::InvalidIp(e) => Some(e),
-            Self::InvalidPort(e) => Some(e),
-            Self::IoError(e) => Some(e),
-            Self::ProtocolError(e) => Some(e),
-        }
-    }
-}
 
 pub struct GrapevineUI {
     // encapsulations
     app: GrapevineApp,
     event_handler: Arc<Mutex<UiEventHandler>>,
-    // input
-    channel_name_input: String,
-    channel_addr_input: String,
     channel_message_input: String,
-    channel_private_key_path: String,
-    channel_recipient_key_path: String,
     // Vis
     selected_channel: Option<Arc<Channel>>,
+    settings_modal: Option<SettingsModal>,
+    channel_modal: Option<ChannelModal>,
+    settings: Settings,
 }
 
 impl GrapevineUI {
-    pub fn new(mut app: GrapevineApp) -> Self {
+    pub fn new() -> Self {
         let event_handler = Arc::new(Mutex::new(UiEventHandler::default()));
+        let settings = Settings::default();
+
+        let mut app = GrapevineApp::new();
 
         app.add_event_recipient(event_handler.clone());
+        if let Some(addr) = settings.listening() {
+            app.start_listening(addr.clone());
+        }
 
         Self {
             app,
             event_handler,
-            channel_name_input: String::new(),
-            channel_addr_input: String::new(),
-            channel_message_input: String::new(),
-            channel_private_key_path: String::new(),
-            channel_recipient_key_path: String::new(),
             selected_channel: None,
+            channel_message_input: String::new(),
+            settings_modal: None,
+            channel_modal: None,
+            settings: settings,
         }
     }
 }
@@ -83,40 +63,8 @@ impl GrapevineUI {
             }
         }
 
-        if let Err(e) = ui
-            .menu_button("New Channel", |ui| -> Result<(), ChannelFormError> {
-                ui.label("Channel Name");
-                ui.text_edit_singleline(&mut self.channel_name_input);
-
-                ui.label("Address");
-                ui.text_edit_singleline(&mut self.channel_addr_input);
-
-                if ui.button("Create").clicked() {
-                    let addr = SocketAddr::from_str(&self.channel_addr_input)?;
-                    let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
-
-                    self.app.new_channel(addr, name)?;
-
-                    ui.close();
-                }
-
-                ui.menu_button("Create with keys", |ui| {
-                    ui.label("Private key");
-                    ui.text_edit_singleline(&mut self.channel_private_key_path);
-
-                    ui.label("Recipient's public key");
-                    ui.text_edit_singleline(&mut self.channel_recipient_key_path);
-                });
-
-                Ok(())
-            })
-            .inner
-            .transpose()
-        {
-            self.event_handler
-                .lock()
-                .unwrap()
-                .error(&format!("Connection error: {}", e));
+        if ui.button("Create channel").clicked() {
+            self.channel_modal = Some(ChannelModal::new());
         }
 
         // first we clear the pending connections
@@ -160,7 +108,7 @@ impl GrapevineUI {
                         let (author, layout) = if message.is_theirs() {
                             (channel.name(), Layout::left_to_right(Align::TOP))
                         } else {
-                            (OUR_NAME, Layout::right_to_left(Align::TOP))
+                            (self.settings.username(), Layout::right_to_left(Align::TOP))
                         };
                         let text = format!("{}: {}", author, message.content());
 
@@ -196,25 +144,57 @@ impl GrapevineUI {
             });
         }
     }
+
+    fn top_panel(&mut self, ui: &mut Ui) {
+        if ui.button("Settings").clicked() {
+            self.settings_modal = Some(SettingsModal::new(&self.settings));
+        }
+    }
 }
 
 impl eframe::App for GrapevineUI {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        SidePanel::left("Channels").show(ctx, |ui| {
-            // well all this menu bar business is horribly convoluted
-            MenuBar::new()
-                .config(
-                    MenuConfig::default().close_behavior(PopupCloseBehavior::CloseOnClickOutside),
-                )
-                .ui(ui, |ui| {
-                    ui.vertical_centered_justified(|ui| self.channels_panel(ui))
-                });
-        });
+        TopBottomPanel::top("Options Panel")
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.with_layout(Layout::right_to_left(Align::Max), |ui| self.top_panel(ui))
+            });
+
+        SidePanel::left("Channels")
+            .resizable(false)
+            .show(ctx, |ui| {
+                // well all this menu bar business is horribly convoluted
+                MenuBar::new()
+                    .config(
+                        MenuConfig::default()
+                            .close_behavior(PopupCloseBehavior::CloseOnClickOutside),
+                    )
+                    .ui(ui, |ui| {
+                        ui.vertical_centered_justified(|ui| self.channels_panel(ui))
+                    });
+            });
 
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
 
+        if let Some(modal) = &mut self.settings_modal {
+            if let Some(settings) = modal.show(ctx) {
+                self.settings = settings;
+                if let Some(addr) = self.settings.listening() {
+                    self.app.start_listening(addr.clone());
+                } else {
+                    self.app.stop_listening();
+                }
+
+                self.settings_modal = None;
+            }
+        }
+
+        if let Some(modal) = &mut self.channel_modal {
+            if modal.show(ctx, &mut self.app).is_some() {
+                self.channel_modal = None;
+            }
+        }
+
         self.event_handler.lock().unwrap().ui(ctx);
     }
-
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {}
 }

@@ -7,7 +7,7 @@ edition = "2024"
 chrono = { version = "0.4.41", features = ["serde"] }
 bitcode = { version = "0.6.7", features = ["serde"] }
 eframe = "0.32.1"
-egui = "0.32.1"
+egui = {version="0.32.1", features=[]}
 integer-encoding = "4.0.2"
 openssl = "0.10.73"
 serde = "1.0.219"

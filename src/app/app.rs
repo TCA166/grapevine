@@ -1,7 +1,10 @@
 use std::{
     io,
     net::{SocketAddr, TcpStream},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{self, JoinHandle},
 };
 
@@ -61,23 +64,30 @@ fn watchdog(
 /// App backend, with no reference to the UI.
 /// In theory this could be used in a CLI no problem.
 pub struct GrapevineApp {
-    // core app
+    /// Active channels
     channels: Shared<Vec<Arc<Channel>>>,
+    /// Incoming connections we aren't sure we want to accept
     pending_connections: Shared<Vec<PendingConnection>>,
-    // listener threads
-    server_thread: JoinHandle<()>,
+
+    /// Thread responsible for listening to new incoming connections
+    listening: Arc<AtomicBool>,
+    server_thread: Option<JoinHandle<()>>,
+    /// Threads listening for new messages
     channel_threads: Shared<Vec<JoinHandle<ChannelThreadResult>>>,
+    /// Threads creating new channels
     channel_creation_threads: Shared<Vec<JoinHandle<ChannelCreationThreadResult>>>,
+    /// Thread monitoring other threads
     watchdog_thread: JoinHandle<()>,
+
+    /// Our internal event handler
     handler: Shared<EventHandler>,
 }
 
 impl GrapevineApp {
     /// Create a new app instance, starting a server thread listening
     /// on the given address and port
-    pub fn new(address: SocketAddr) -> Self {
+    pub fn new() -> Self {
         let channels = Arc::new(Mutex::new(Vec::new()));
-        let pending_connections = Arc::new(Mutex::new(Vec::new()));
         let channel_threads = Arc::new(Mutex::new(Vec::new()));
         let channel_creation_threads = Arc::new(Mutex::new(Vec::new()));
 
@@ -85,8 +95,9 @@ impl GrapevineApp {
 
         Self {
             channels: channels,
-            pending_connections: pending_connections.clone(),
-            server_thread: thread::spawn(move || listener_thread(address, pending_connections)),
+            pending_connections: Arc::new(Mutex::new(Vec::new())),
+            listening: Arc::new(AtomicBool::new(false)),
+            server_thread: None,
             channel_threads: channel_threads.clone(),
             channel_creation_threads: channel_creation_threads.clone(),
             handler: handler.clone(),
@@ -168,5 +179,25 @@ impl GrapevineApp {
     /// Adds a listener that will receive all app wide events
     pub fn add_event_recipient(&mut self, recipient: Shared<dyn EventRecipient>) {
         self.handler.lock().unwrap().add_recipient(recipient);
+    }
+
+    pub fn stop_listening(&mut self) {
+        if let Some(server) = self.server_thread.take() {
+            self.listening.store(false, Ordering::Relaxed);
+
+            server.join().unwrap();
+        }
+    }
+
+    pub fn start_listening(&mut self, addr: SocketAddr) {
+        if self.listening.swap(true, Ordering::Relaxed) {
+            self.stop_listening();
+        }
+
+        let pending = self.pending_connections.clone();
+        let listening = self.listening.clone();
+        self.server_thread = Some(thread::spawn(move || {
+            listener_thread(addr, pending, listening)
+        }))
     }
 }

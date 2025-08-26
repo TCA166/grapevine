@@ -1,13 +1,14 @@
 mod app;
-use std::{net::SocketAddr, str::FromStr};
-
-use app::GrapevineApp;
 
 mod protocol;
 
 mod handler;
 
 mod ui;
+
+mod settings;
+
+mod components;
 
 use ui::GrapevineUI;
 
@@ -19,10 +20,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         env!("CARGO_PKG_NAME"),
         options,
-        Box::new(|cc| {
-            Ok(Box::new(GrapevineUI::new(GrapevineApp::new(
-                SocketAddr::from_str("0.0.0.0:5000").unwrap(),
-            ))))
-        }),
+        Box::new(|cc| Ok(Box::new(GrapevineUI::new()))),
     )
 }

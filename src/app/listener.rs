@@ -1,6 +1,12 @@
 use std::{
     io,
     net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::sleep,
+    time::Duration,
 };
 
 use super::{Shared, channel::Channel, events::HandleMessage};
@@ -30,10 +36,20 @@ impl PendingConnection {
 }
 
 /// 'Server' thread, that listens for incoming connections and creates new channels for each connection.
-pub fn listener_thread<A: ToSocketAddrs>(addr: A, pending: Shared<Vec<PendingConnection>>) {
+pub fn listener_thread<A: ToSocketAddrs>(
+    addr: A,
+    pending: Shared<Vec<PendingConnection>>,
+    listening: Arc<AtomicBool>,
+) {
     let listener = TcpListener::bind(addr).unwrap();
 
+    listener.set_nonblocking(true).unwrap();
+
     for stream in listener.incoming() {
+        if !listening.load(Ordering::Relaxed) {
+            break;
+        }
+
         if let Ok(stream) = stream {
             let name = stream.peer_addr().unwrap().to_string();
 
@@ -41,6 +57,8 @@ pub fn listener_thread<A: ToSocketAddrs>(addr: A, pending: Shared<Vec<PendingCon
                 .lock()
                 .unwrap()
                 .push(PendingConnection { stream, name });
+        } else {
+            sleep(Duration::from_millis(100));
         }
     }
 }
