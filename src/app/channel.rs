@@ -1,9 +1,4 @@
-use std::{
-    error, io,
-    net::TcpStream,
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::{error, io, net::TcpStream, ops::Deref, sync::Mutex};
 
 use derive_more::{Display, From};
 use openssl::{
@@ -13,11 +8,12 @@ use openssl::{
 };
 
 use super::{
-    events::HandleOnMessage,
-    protocol::{
+    super::protocol::{
         AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE,
         RsaHandshake,
     },
+    Shared,
+    events::HandleMessage,
 };
 
 /// An error that has occured during [Packet] exchange
@@ -49,7 +45,7 @@ pub struct Channel {
     their_rsa_public_key: PKey<Public>,
     /// The key for decrypting messages
     their_aes_key: [u8; AES_KEY_SIZE],
-    message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+    message_handler: Shared<dyn HandleMessage>,
 }
 
 impl Channel {
@@ -57,7 +53,7 @@ impl Channel {
     pub fn new(
         mut stream: TcpStream,
         name: Option<String>,
-        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+        message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Self>, io::Error> {
         // ok so first we generate a new private key for us
         let private_rsa_key = PKey::from_rsa(Rsa::generate(RSA_KEY_SIZE)?)?;
@@ -92,7 +88,7 @@ impl Channel {
         our_key: PKey<Private>,
         their_key: PKey<Public>,
         name: Option<String>,
-        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+        message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Self>, io::Error> {
         let mut our_aes_key = [0; AES_KEY_SIZE];
         rand_bytes(&mut our_aes_key)?;
@@ -137,9 +133,10 @@ impl Channel {
 
             let message: Message = Message::from_packet(&packet);
 
-            if let Some(handler) = self.message_handler.as_ref() {
-                handler.lock().unwrap().on_message(&message, self);
-            }
+            self.message_handler
+                .lock()
+                .unwrap()
+                .on_message(&message, self);
 
             self.messages.lock().unwrap().push(message);
         }

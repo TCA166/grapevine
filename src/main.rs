@@ -3,13 +3,7 @@ use std::net::Ipv4Addr;
 
 use app::GrapevineApp;
 
-mod listener;
-
-mod channel;
-
 mod protocol;
-
-mod events;
 
 mod handler;
 

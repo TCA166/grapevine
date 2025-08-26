@@ -1,10 +1,9 @@
 use std::{
     io,
     net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
-    sync::{Arc, Mutex},
 };
 
-use super::{channel::Channel, events::HandleOnMessage};
+use super::{Shared, channel::Channel, events::HandleMessage};
 
 pub struct PendingConnection {
     stream: TcpStream,
@@ -15,7 +14,7 @@ impl PendingConnection {
     pub fn accept(
         self,
         name: Option<String>,
-        message_handler: Option<Arc<Mutex<dyn HandleOnMessage>>>,
+        message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Channel>, io::Error> {
         Channel::new(self.stream, name, message_handler)
     }
@@ -30,7 +29,7 @@ impl PendingConnection {
 }
 
 /// 'Server' thread, that listens for incoming connections and creates new channels for each connection.
-pub fn listener_thread<A: ToSocketAddrs>(addr: A, pending: Arc<Mutex<Vec<PendingConnection>>>) {
+pub fn listener_thread<A: ToSocketAddrs>(addr: A, pending: Shared<Vec<PendingConnection>>) {
     let listener = TcpListener::bind(addr).unwrap();
 
     for stream in listener.incoming() {

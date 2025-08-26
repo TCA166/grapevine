@@ -14,9 +14,8 @@ use egui::{
 };
 
 use super::{
-    app::GrapevineApp,
-    channel::{Channel, ProtocolError},
-    handler::EventHandler,
+    app::{Channel, GrapevineApp, ProtocolError},
+    handler::UiEventHandler,
     protocol::Message,
 };
 
@@ -44,7 +43,7 @@ impl error::Error for ChannelFormError {
 pub struct GrapevineUI {
     // encapsulations
     app: GrapevineApp,
-    event_handler: Arc<Mutex<EventHandler>>,
+    event_handler: Arc<Mutex<UiEventHandler>>,
     // input
     channel_name_input: String,
     channel_ip_input: String,
@@ -56,9 +55,9 @@ pub struct GrapevineUI {
 
 impl GrapevineUI {
     pub fn new(mut app: GrapevineApp) -> Self {
-        let event_handler = Arc::new(Mutex::new(EventHandler::default()));
+        let event_handler = Arc::new(Mutex::new(UiEventHandler::default()));
 
-        app.set_message_handler(event_handler.clone());
+        app.add_event_recipient(event_handler.clone());
 
         Self {
             app,
