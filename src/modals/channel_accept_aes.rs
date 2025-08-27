@@ -1,15 +1,20 @@
 use std::{fs, io};
 
 use egui::Ui;
+use egui_file::FileDialog;
 use openssl::pkey::{PKey, Private, Public};
 
-use super::{super::app::PendingAesHandshake, modal::Form};
+use super::{
+    super::{app::PendingAesHandshake, widgets::FilePathInput},
+    modal::Form,
+};
 
 pub struct ChannelAcceptAesForm {
     pending: PendingAesHandshake,
     name_input: String,
     public_key: String,
     private_key: String,
+    file_dialog: Option<FileDialog>,
 }
 
 impl ChannelAcceptAesForm {
@@ -19,6 +24,7 @@ impl ChannelAcceptAesForm {
             name_input: String::new(),
             public_key: String::new(),
             private_key: String::new(),
+            file_dialog: None,
         }
     }
 
@@ -40,11 +46,15 @@ impl Form<'_> for ChannelAcceptAesForm {
         ui.label("Given name");
         ui.text_edit_singleline(&mut self.name_input);
 
-        ui.label("Our private key path");
-        ui.text_edit_singleline(&mut self.private_key);
+        ui.add(FilePathInput::new(
+            &mut self.private_key,
+            "Our private key path",
+        ));
 
-        ui.label("Their public key path");
-        ui.text_edit_singleline(&mut self.public_key);
+        ui.add(FilePathInput::new(
+            &mut self.public_key,
+            "Their public key path",
+        ));
 
         ui.horizontal(|ui| {
             if ui.button("Connect").clicked() {

@@ -90,6 +90,8 @@ pub struct GrapevineApp {
 
 impl GrapevineApp {
     /// Create a new app instance
+    ///
+    /// Initializes the [EventHandler] and [Self::watchdog_thread].
     pub fn new() -> Self {
         let channels = Arc::new(Mutex::new(Vec::new()));
         let channel_threads = Arc::new(Mutex::new(Vec::new()));
@@ -111,42 +113,40 @@ impl GrapevineApp {
         }
     }
 
-    /// Creates a new connection, in case of problems returns immediately.
-    /// Based on that connection, creates a new [Channel] in a thread,
-    /// in case of rejection that thread will be terminated, but no error will
-    /// be returned here
-    pub fn new_channel(&mut self, addr: SocketAddr, name: Option<String>) -> Result<(), io::Error> {
-        let mut stream = TcpStream::connect(addr)?;
-
-        let channels = self.channels.clone();
-        let message_handler = self.handler.clone();
-        let channel_threads = self.channel_threads.clone();
-
-        let handshake = Handshake::new(ProtocolPath::RsaExchange);
-        handshake.to_writer(&mut stream)?;
-
-        self.channel_creation_threads
-            .lock()
-            .unwrap()
-            .push(thread::spawn(
-                move || -> Result<Arc<Channel>, ProtocolError> {
-                    match Channel::new(stream, name, message_handler)? {
-                        Some(channel) => {
-                            let channel = Arc::new(channel);
-                            let channel_copy = channel.clone();
-                            channel_threads
-                                .lock()
-                                .unwrap()
-                                .push(thread::spawn(move || add_channel(channels, channel_copy)));
-                            Ok(channel)
-                        }
-                        None => Err(ProtocolError::VerificationError),
-                    }
-                },
-            ));
-        Ok(())
+    /// Creates a new connection, assuming the RSA handshake will happen next.
+    ///
+    /// ## Args
+    ///
+    /// - addr: the address to which the new [Channel] should connect to
+    /// - name: the name to give the [Channel]
+    ///
+    /// ## Returns
+    ///
+    /// In case of immediate connection errors, it will return an error.
+    /// The [Channel] creation will happen in a separate thread though,
+    /// meaning immediately after calling, the [Channel] won't be added to
+    /// [Self::channels].
+    pub fn new_rsa_channel(
+        &mut self,
+        addr: SocketAddr,
+        name: Option<String>,
+    ) -> Result<(), io::Error> {
+        self.new_channel(
+            addr,
+            ProtocolPath::RsaExchange,
+            |stream, message_handler| Channel::new(stream, name, message_handler),
+        )
     }
 
+    /// Creates a new connection, assuming the AES handshake will happen next.
+    /// For more details look at [Self::new_rsa_channel].
+    ///
+    /// ## Args
+    ///
+    /// - addr: The address the new channel should connect to
+    /// - our_key: Our private key, the recipient should have the corresponding public key
+    /// - their_key: Their public key, the recipient should have the corresponding private key
+    /// - name: The name to give the channel
     pub fn new_aes_channel(
         &mut self,
         addr: SocketAddr,
@@ -154,13 +154,37 @@ impl GrapevineApp {
         their_key: PKey<Public>,
         name: Option<String>,
     ) -> Result<(), io::Error> {
+        self.new_channel(
+            addr,
+            ProtocolPath::AesExchange,
+            |stream, message_handler| {
+                Channel::with_keys(stream, our_key, their_key, name, message_handler)
+            },
+        )
+    }
+
+    /// Helper method that estabilishes the connection and handles the threading.
+    ///
+    /// The connection will be created immediately, alongside the handshake.
+    /// The channel will be created in a helper thread, so that it can wait
+    /// for getting accepted on the other side ([Self::channel_creation_threads]).
+    /// After finishing the handshakes, the channel listening will happen
+    /// in a new thread ([Self::channel_threads])
+    fn new_channel(
+        &mut self,
+        addr: SocketAddr,
+        path: ProtocolPath,
+        creator: impl 'static
+        + Send
+        + FnOnce(TcpStream, Shared<EventHandler>) -> Result<Option<Channel>, io::Error>,
+    ) -> Result<(), io::Error> {
         let mut stream = TcpStream::connect(addr)?;
 
         let channels = self.channels.clone();
         let message_handler = self.handler.clone();
         let channel_threads = self.channel_threads.clone();
 
-        let handshake = Handshake::new(ProtocolPath::AesExchange);
+        let handshake = Handshake::new(path);
         handshake.to_writer(&mut stream)?;
 
         self.channel_creation_threads
@@ -168,7 +192,7 @@ impl GrapevineApp {
             .unwrap()
             .push(thread::spawn(
                 move || -> Result<Arc<Channel>, ProtocolError> {
-                    match Channel::with_keys(stream, our_key, their_key, name, message_handler)? {
+                    match creator(stream, message_handler)? {
                         Some(channel) => {
                             let channel = Arc::new(channel);
                             let channel_copy = channel.clone();

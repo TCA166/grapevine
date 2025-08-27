@@ -11,7 +11,7 @@ use openssl::{
     pkey::{PKey, Private, Public},
 };
 
-use super::modal::Form;
+use super::{super::widgets::FilePathInput, modal::Form};
 
 #[derive(Debug, From, Display)]
 pub enum ChannelFormError {
@@ -58,11 +58,15 @@ impl<'a> Form<'a> for ChannelForm {
         ui.checkbox(&mut self.aes_skip, "Known keys");
         ui.add_enabled_ui(self.aes_skip, |ui| {
             Frame::group(ui.style()).show(ui, |ui| {
-                ui.label("Recipient public key path");
-                ui.text_edit_singleline(&mut self.public_key_path);
+                ui.add(FilePathInput::new(
+                    &mut self.public_key_path,
+                    "Recipient public key path",
+                ));
 
-                ui.label("Our private key path");
-                ui.text_edit_singleline(&mut self.private_key_path);
+                ui.add(FilePathInput::new(
+                    &mut self.private_key_path,
+                    "Our private key path",
+                ));
             })
         });
 

@@ -224,7 +224,7 @@ impl eframe::App for GrapevineUI {
         {
             if let Some(args) = ret {
                 if let Err(e) = match args {
-                    ChannelArgs::Rsa(rsa) => self.app.new_channel(rsa.0, rsa.1),
+                    ChannelArgs::Rsa(rsa) => self.app.new_rsa_channel(rsa.0, rsa.1),
                     ChannelArgs::Aes(aes) => self.app.new_aes_channel(aes.0, aes.2, aes.3, aes.1),
                 } {
                     self.event_handler

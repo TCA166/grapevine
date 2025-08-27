@@ -10,6 +10,8 @@ mod settings;
 
 mod modals;
 
+mod widgets;
+
 use ui::GrapevineUI;
 
 fn main() -> eframe::Result {
