@@ -11,7 +11,7 @@ use egui::{
 
 use super::{
     app::{Channel, GrapevineApp},
-    components::{ChannelModal, SettingsModal},
+    components::{ChannelForm, ModalForm, SettingsForm},
     handler::UiEventHandler,
     protocol::Message,
     settings::Settings,
@@ -24,8 +24,8 @@ pub struct GrapevineUI {
     channel_message_input: String,
     // Vis
     selected_channel: Option<Arc<Channel>>,
-    settings_modal: Option<SettingsModal>,
-    channel_modal: Option<ChannelModal>,
+    settings_modal: Option<ModalForm<SettingsForm>>,
+    channel_modal: Option<ModalForm<ChannelForm>>,
     settings: Settings,
 }
 
@@ -64,7 +64,7 @@ impl GrapevineUI {
         }
 
         if ui.button("Create channel").clicked() {
-            self.channel_modal = Some(ChannelModal::new());
+            self.channel_modal = Some(ModalForm::new(ChannelForm::default(), "New Channel"));
         }
 
         // first we clear the pending connections
@@ -147,7 +147,10 @@ impl GrapevineUI {
 
     fn top_panel(&mut self, ui: &mut Ui) {
         if ui.button("Settings").clicked() {
-            self.settings_modal = Some(SettingsModal::new(&self.settings));
+            self.settings_modal = Some(ModalForm::new(
+                SettingsForm::new(&self.settings),
+                "Settings",
+            ));
         }
     }
 }
@@ -155,6 +158,11 @@ impl GrapevineUI {
 impl eframe::App for GrapevineUI {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         TopBottomPanel::top("Options Panel")
+            .frame(
+                Frame::new()
+                    .fill(ctx.style().visuals.panel_fill)
+                    .inner_margin(0),
+            )
             .resizable(false)
             .show(ctx, |ui| {
                 ui.with_layout(Layout::right_to_left(Align::Max), |ui| self.top_panel(ui))
@@ -177,7 +185,7 @@ impl eframe::App for GrapevineUI {
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
 
         if let Some(modal) = &mut self.settings_modal {
-            if let Some(settings) = modal.show(ctx) {
+            if let Some(settings) = modal.show(ctx, ()) {
                 self.settings = settings;
                 if let Some(addr) = self.settings.listening() {
                     self.app.start_listening(addr.clone());

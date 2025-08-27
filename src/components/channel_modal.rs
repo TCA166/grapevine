@@ -6,13 +6,14 @@ use std::{
 };
 
 use derive_more::{Display, From};
-use egui::{Context, Modal};
-use egui_notify::Toasts;
 
-use super::super::app::{GrapevineApp, ProtocolError};
+use super::{
+    super::app::{GrapevineApp, ProtocolError},
+    modal::Form,
+};
 
 #[derive(Debug, From, Display)]
-enum ChannelFormError {
+pub enum ChannelFormError {
     InvalidPort(ParseIntError),
     InvalidIp(AddrParseError),
     IoError(io::Error),
@@ -30,52 +31,42 @@ impl error::Error for ChannelFormError {
     }
 }
 
-pub struct ChannelModal {
+#[derive(Default)]
+pub struct ChannelForm {
     channel_name_input: String,
     channel_addr_input: String,
-    toasts: Toasts,
 }
 
-impl ChannelModal {
-    pub fn new() -> Self {
-        Self {
-            channel_addr_input: String::new(),
-            channel_name_input: String::new(),
-            toasts: Toasts::default(),
-        }
-    }
+impl<'a> Form<'a> for ChannelForm {
+    type Args = &'a mut GrapevineApp;
+    type Ret = ();
+    type Error = ChannelFormError;
 
-    pub fn show(&mut self, ctx: &Context, app: &mut GrapevineApp) -> Option<()> {
-        self.toasts.show(ctx);
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        app: Self::Args,
+    ) -> Result<Option<Self::Ret>, Self::Error> {
+        ui.label("Channel Name");
+        ui.text_edit_singleline(&mut self.channel_name_input);
 
-        Modal::new("New channel".into())
-            .show(ctx, |ui| -> Result<Option<()>, ChannelFormError> {
-                ui.label("Channel Name");
-                ui.text_edit_singleline(&mut self.channel_name_input);
+        ui.label("Address");
+        ui.text_edit_singleline(&mut self.channel_addr_input);
 
-                ui.label("Address");
-                ui.text_edit_singleline(&mut self.channel_addr_input);
+        ui.horizontal(|ui| {
+            if ui.button("Create").clicked() {
+                let addr = SocketAddr::from_str(&self.channel_addr_input)?;
+                let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
 
-                ui.horizontal(|ui| {
-                    if ui.button("Create").clicked() {
-                        let addr = SocketAddr::from_str(&self.channel_addr_input)?;
-                        let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
+                app.new_channel(addr, name)?;
 
-                        app.new_channel(addr, name)?;
-
-                        Ok(Some(()))
-                    } else if ui.button("Cancel").clicked() {
-                        Ok(Some(()))
-                    } else {
-                        Ok(None)
-                    }
-                })
-                .inner
-            })
-            .inner
-            .unwrap_or_else(|err| {
-                self.toasts.error(format!("{}", &err));
-                None
-            })
+                Ok(Some(()))
+            } else if ui.button("Cancel").clicked() {
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .inner
     }
 }
