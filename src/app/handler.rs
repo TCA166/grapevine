@@ -26,6 +26,7 @@ pub trait EventRecipient: Send {
 }
 
 impl EventHandler {
+    /// Creates a new [EventHandler], with a shared ownership of the app's channels
     pub fn new(channels: Shared<Vec<Arc<Channel>>>) -> Self {
         Self {
             channels,
@@ -33,10 +34,12 @@ impl EventHandler {
         }
     }
 
+    /// Adds a recipient, towards which all events will be forwarded to
     pub fn add_recipient(&mut self, recipient: Shared<dyn EventRecipient>) {
         self.recipients.push(recipient);
     }
 
+    /// Convenience method that does some work on all recipients
     fn recipient_invoke(&mut self, f: impl Fn(&mut dyn EventRecipient) -> ()) {
         for recipient in &self.recipients {
             f(recipient.lock().unwrap().deref_mut())

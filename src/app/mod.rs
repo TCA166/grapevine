@@ -1,5 +1,5 @@
 mod channel;
-pub use channel::{Channel, ProtocolError};
+pub use channel::Channel;
 
 mod events;
 

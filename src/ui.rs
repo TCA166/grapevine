@@ -255,6 +255,12 @@ impl eframe::App for GrapevineUI {
         {
             let pending = self.channel_aes_modal.take().unwrap().inner().pending();
             if let Some(args) = res {
+                if let Err(e) = self.app.add_aes_channel(pending, args.0, args.1, args.2) {
+                    self.event_handler
+                        .lock()
+                        .unwrap()
+                        .error(format!("Error while accepting: {}", e));
+                }
             } else {
                 pending.reject();
             }

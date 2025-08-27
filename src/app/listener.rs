@@ -18,21 +18,25 @@ use super::{
     events::HandleMessage,
 };
 
+/// Generic pending connection
 struct PendingHandshake {
     stream: TcpStream,
     name: String,
 }
 
 impl PendingHandshake {
+    /// Close the connection
     pub fn reject(self) {
         self.stream.shutdown(Shutdown::Both).unwrap();
     }
 
+    /// Get the name of the incoming connection
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 }
 
+/// [PendingHandshake] but with the context of having received a [Handshake] with [ProtocolPath::AesExchange]
 pub struct PendingAesHandshake {
     inner: PendingHandshake,
 }
@@ -57,7 +61,7 @@ impl PendingAesHandshake {
     }
 }
 
-/// A connection that has yet to be accepted
+/// [PendingHandshake] but with the context of having received a [Handshake] with [ProtocolPath::RsaExchange]
 pub struct PendingRsaHandshake {
     inner: PendingHandshake,
 }
@@ -80,6 +84,7 @@ impl PendingRsaHandshake {
     }
 }
 
+/// Unspecified type of incoming connection
 pub enum PendingConnection {
     Rsa(PendingRsaHandshake),
     Aes(PendingAesHandshake),

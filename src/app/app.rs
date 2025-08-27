@@ -34,6 +34,8 @@ fn add_channel(channels: Shared<Vec<Arc<Channel>>>, channel: Arc<Channel>) -> Ch
     }
 }
 
+/// Thread that monitors other threads for failures, and forwards that
+/// information to the [EventHandler]
 fn watchdog(
     threads: Shared<Vec<JoinHandle<ChannelThreadResult>>>,
     creation_threads: Shared<Vec<JoinHandle<ChannelCreationThreadResult>>>,
@@ -87,8 +89,7 @@ pub struct GrapevineApp {
 }
 
 impl GrapevineApp {
-    /// Create a new app instance, starting a server thread listening
-    /// on the given address and port
+    /// Create a new app instance
     pub fn new() -> Self {
         let channels = Arc::new(Mutex::new(Vec::new()));
         let channel_threads = Arc::new(Mutex::new(Vec::new()));
@@ -158,6 +159,7 @@ impl GrapevineApp {
         Ok(())
     }
 
+    /// Accepts a [PendingAesHandshake], and adds it as a [Channel] to the app
     pub fn add_aes_channel(
         &mut self,
         pending: PendingAesHandshake,
@@ -171,6 +173,7 @@ impl GrapevineApp {
         Ok(())
     }
 
+    /// Internal method that handles all the necessary details behind adding a [Channel]
     fn add_channel(&mut self, channel: Channel) {
         let channels = self.channels.clone();
         let channel = Arc::new(channel);
@@ -204,6 +207,7 @@ impl GrapevineApp {
         self.handler.lock().unwrap().add_recipient(recipient);
     }
 
+    /// Stops the server thread
     pub fn stop_listening(&mut self) {
         if let Some(server) = self.server_thread.take() {
             self.listening.store(false, Ordering::Relaxed);
@@ -212,6 +216,7 @@ impl GrapevineApp {
         }
     }
 
+    /// Starts the server thread
     pub fn start_listening(&mut self, addr: SocketAddr) {
         if self.listening.swap(true, Ordering::Relaxed) {
             self.stop_listening();
