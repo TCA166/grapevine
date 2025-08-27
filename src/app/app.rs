@@ -8,12 +8,15 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use openssl::pkey::{PKey, Private, Public};
+
 use super::{
+    super::protocol::Handshake,
     Shared,
     channel::{Channel, ProtocolError},
     events::{HandleChannelCreationError, HandleNewChannel, HandleThreadError},
     handler::{EventHandler, EventRecipient},
-    listener::{PendingConnection, listener_thread},
+    listener::{PendingAesHandshake, PendingConnection, PendingRsaHandshake, listener_thread},
 };
 
 type ChannelThreadResult = Result<(), (ProtocolError, Arc<Channel>)>;
@@ -112,11 +115,14 @@ impl GrapevineApp {
     /// in case of rejection that thread will be terminated, but no error will
     /// be returned here
     pub fn new_channel(&mut self, addr: SocketAddr, name: Option<String>) -> Result<(), io::Error> {
-        let stream = TcpStream::connect(addr)?;
+        let mut stream = TcpStream::connect(addr)?;
 
         let channels = self.channels.clone();
         let message_handler = self.handler.clone();
         let channel_threads = self.channel_threads.clone();
+
+        let handshake = Handshake::default();
+        handshake.to_writer(&mut stream)?;
 
         self.channel_creation_threads
             .lock()
@@ -140,21 +146,38 @@ impl GrapevineApp {
         Ok(())
     }
 
-    /// Accepts a [PendingConnection], and adds it as a [Channel] to the app
-    pub fn add_channel(
+    /// Accepts a [PendingRsaHandshake], and adds it as a [Channel] to the app
+    pub fn add_rsa_channel(
         &mut self,
-        pending: PendingConnection,
+        pending: PendingRsaHandshake,
         name: Option<String>,
     ) -> Result<(), ProtocolError> {
         if let Some(channel) = pending.accept(name, self.handler.clone())? {
-            let channels = self.channels.clone();
-            let channel = Arc::new(channel);
-            self.channel_threads
-                .lock()
-                .unwrap()
-                .push(thread::spawn(move || add_channel(channels, channel)));
+            self.add_channel(channel);
         }
         Ok(())
+    }
+
+    pub fn add_aes_channel(
+        &mut self,
+        pending: PendingAesHandshake,
+        name: Option<String>,
+        our_key: PKey<Private>,
+        their_key: PKey<Public>,
+    ) -> Result<(), ProtocolError> {
+        if let Some(channel) = pending.accept(name, our_key, their_key, self.handler.clone())? {
+            self.add_channel(channel);
+        }
+        Ok(())
+    }
+
+    fn add_channel(&mut self, channel: Channel) {
+        let channels = self.channels.clone();
+        let channel = Arc::new(channel);
+        self.channel_threads
+            .lock()
+            .unwrap()
+            .push(thread::spawn(move || add_channel(channels, channel)));
     }
 
     /// Gets the list of currently ongoing channels

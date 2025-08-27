@@ -10,9 +10,9 @@ use egui::{
 };
 
 use super::{
-    app::{Channel, GrapevineApp},
-    components::{ChannelForm, ModalForm, SettingsForm},
+    app::{Channel, GrapevineApp, PendingConnection},
     handler::UiEventHandler,
+    modals::{ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelForm, ModalForm, SettingsForm},
     protocol::Message,
     settings::Settings,
 };
@@ -26,6 +26,8 @@ pub struct GrapevineUI {
     selected_channel: Option<Arc<Channel>>,
     settings_modal: Option<ModalForm<SettingsForm>>,
     channel_modal: Option<ModalForm<ChannelForm>>,
+    channel_rsa_modal: Option<ModalForm<ChannelAcceptRsaForm>>,
+    channel_aes_modal: Option<ModalForm<ChannelAcceptAesForm>>,
     settings: Settings,
 }
 
@@ -48,6 +50,8 @@ impl GrapevineUI {
             channel_message_input: String::new(),
             settings_modal: None,
             channel_modal: None,
+            channel_rsa_modal: None,
+            channel_aes_modal: None,
             settings: settings,
         }
     }
@@ -75,14 +79,25 @@ impl GrapevineUI {
                     ui.set_min_width(width);
                     ui.label(pending.name());
 
-                    if ui.small_button("✔").clicked() {
-                        match self.app.add_channel(pending, None) {
-                            Ok(_) => self.event_handler.lock().unwrap().info("Channel added"),
-                            Err(e) => self
-                                .event_handler
-                                .lock()
-                                .unwrap()
-                                .error(&format!("Failed to add channel: {}", e)),
+                    let label = match pending {
+                        PendingConnection::Aes(_) => "?",
+                        PendingConnection::Rsa(_) => "✔",
+                    };
+
+                    if ui.small_button(label).clicked() {
+                        match pending {
+                            PendingConnection::Aes(aes) => {
+                                self.channel_aes_modal = Some(ModalForm::new(
+                                    ChannelAcceptAesForm::new(aes),
+                                    "Aes Accept",
+                                ))
+                            }
+                            PendingConnection::Rsa(rsa) => {
+                                self.channel_rsa_modal = Some(ModalForm::new(
+                                    ChannelAcceptRsaForm::new(rsa),
+                                    "Rsa Accept",
+                                ));
+                            }
                         };
                     } else if ui.small_button("✘").clicked() {
                         pending.reject();
@@ -105,10 +120,10 @@ impl GrapevineUI {
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
                     for message in channel.messages().lock().unwrap().iter() {
-                        let (author, layout) = if message.is_theirs() {
-                            (channel.name(), Layout::left_to_right(Align::TOP))
-                        } else {
+                        let (author, layout) = if message.is_ours() {
                             (self.settings.username(), Layout::right_to_left(Align::TOP))
+                        } else {
+                            (channel.name(), Layout::left_to_right(Align::TOP))
                         };
                         let text = format!("{}: {}", author, message.content());
 
@@ -184,22 +199,64 @@ impl eframe::App for GrapevineUI {
 
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
 
-        if let Some(modal) = &mut self.settings_modal {
-            if let Some(settings) = modal.show(ctx, ()) {
-                self.settings = settings;
-                if let Some(addr) = self.settings.listening() {
-                    self.app.start_listening(addr.clone());
-                } else {
-                    self.app.stop_listening();
-                }
+        if let Some(settings) = self
+            .settings_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            self.settings = settings;
+            if let Some(addr) = self.settings.listening() {
+                self.app.start_listening(addr.clone());
+            } else {
+                self.app.stop_listening();
+            }
 
-                self.settings_modal = None;
+            self.settings_modal = None;
+        }
+
+        if let Some(ret) = self
+            .channel_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            if let Some((addr, name)) = ret {
+                if let Err(e) = self.app.new_channel(addr, name) {
+                    self.event_handler
+                        .lock()
+                        .unwrap()
+                        .error(format!("Error adding channel: {}", e));
+                }
+            }
+            self.channel_modal = None;
+        }
+
+        if let Some(res) = self
+            .channel_rsa_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            let pending = self.channel_rsa_modal.take().unwrap().inner().pending();
+            if let Some(name) = res {
+                if let Err(e) = self.app.add_rsa_channel(pending, name) {
+                    self.event_handler
+                        .lock()
+                        .unwrap()
+                        .error(format!("Error while accepting: {}", e));
+                }
+            } else {
+                pending.reject();
             }
         }
 
-        if let Some(modal) = &mut self.channel_modal {
-            if modal.show(ctx, &mut self.app).is_some() {
-                self.channel_modal = None;
+        if let Some(res) = self
+            .channel_aes_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            let pending = self.channel_aes_modal.take().unwrap().inner().pending();
+            if let Some(args) = res {
+            } else {
+                pending.reject();
             }
         }
 

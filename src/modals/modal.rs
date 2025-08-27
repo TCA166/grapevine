@@ -3,12 +3,11 @@ use std::error;
 use egui::{Context, Id, Modal, Ui};
 use egui_notify::Toasts;
 
-pub trait Form<'a>: Default {
-    type Args;
+pub trait Form<'a> {
     type Error: error::Error;
     type Ret;
 
-    fn show(&mut self, ui: &mut Ui, args: Self::Args) -> Result<Option<Self::Ret>, Self::Error>;
+    fn show(&mut self, ui: &mut Ui) -> Result<Option<Self::Ret>, Self::Error>;
 }
 
 pub struct ModalForm<T> {
@@ -26,15 +25,19 @@ impl<'a, T: Form<'a>> ModalForm<T> {
         }
     }
 
-    pub fn show(&mut self, ctx: &Context, args: T::Args) -> Option<T::Ret> {
+    pub fn show(&mut self, ctx: &Context) -> Option<T::Ret> {
         self.toasts.show(ctx);
 
         Modal::new(self.modal_name)
-            .show(ctx, |ui| self.inner.show(ui, args))
+            .show(ctx, |ui| self.inner.show(ui))
             .inner
             .unwrap_or_else(|err| {
                 self.toasts.error(format!("{}", &err));
                 None
             })
+    }
+
+    pub fn inner(self) -> T {
+        self.inner
     }
 }

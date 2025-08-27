@@ -1,5 +1,6 @@
 use std::{error, io, net::TcpStream, ops::Deref, sync::Mutex};
 
+use chrono::Utc;
 use derive_more::{Display, From};
 use openssl::{
     pkey::{PKey, Private, Public},
@@ -133,6 +134,18 @@ impl Channel {
             }
 
             let message: Message = Message::from_packet(&packet);
+
+            if message.timestamp() > &Utc::now() {
+                // if we received a message from the future
+                continue;
+            }
+
+            if let Some(last_msg) = self.messages().lock().unwrap().last() {
+                if last_msg.timestamp() > message.timestamp() {
+                    // if we received a message from the past
+                    continue;
+                }
+            }
 
             self.message_handler
                 .lock()

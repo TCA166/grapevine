@@ -7,6 +7,7 @@ mod handler;
 pub use handler::EventRecipient;
 
 mod listener;
+pub use listener::{PendingAesHandshake, PendingConnection, PendingRsaHandshake};
 
 mod app;
 pub use app::GrapevineApp;

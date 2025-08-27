@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
 };
 
-use egui::Frame;
+use egui::{Frame, Ui};
 
 use super::{super::settings::Settings, modal::Form};
 
@@ -16,15 +16,10 @@ pub struct SettingsForm {
 }
 
 impl Form<'_> for SettingsForm {
-    type Args = ();
     type Ret = Settings;
     type Error = AddrParseError;
 
-    fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        _args: Self::Args,
-    ) -> Result<Option<Self::Ret>, Self::Error> {
+    fn show(&mut self, ui: &mut Ui) -> Result<Option<Self::Ret>, Self::Error> {
         ui.label("Username");
         ui.text_edit_singleline(&mut self.uname_input);
 

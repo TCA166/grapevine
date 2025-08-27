@@ -8,7 +8,7 @@ mod ui;
 
 mod settings;
 
-mod components;
+mod modals;
 
 use ui::GrapevineUI;
 

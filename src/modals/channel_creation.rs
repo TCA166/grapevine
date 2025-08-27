@@ -1,5 +1,5 @@
 use std::{
-    error, io,
+    error,
     net::{AddrParseError, SocketAddr},
     num::ParseIntError,
     str::FromStr,
@@ -7,17 +7,12 @@ use std::{
 
 use derive_more::{Display, From};
 
-use super::{
-    super::app::{GrapevineApp, ProtocolError},
-    modal::Form,
-};
+use super::modal::Form;
 
 #[derive(Debug, From, Display)]
 pub enum ChannelFormError {
     InvalidPort(ParseIntError),
     InvalidIp(AddrParseError),
-    IoError(io::Error),
-    ProtocolError(ProtocolError),
 }
 
 impl error::Error for ChannelFormError {
@@ -25,8 +20,6 @@ impl error::Error for ChannelFormError {
         match self {
             Self::InvalidIp(e) => Some(e),
             Self::InvalidPort(e) => Some(e),
-            Self::IoError(e) => Some(e),
-            Self::ProtocolError(e) => Some(e),
         }
     }
 }
@@ -38,15 +31,10 @@ pub struct ChannelForm {
 }
 
 impl<'a> Form<'a> for ChannelForm {
-    type Args = &'a mut GrapevineApp;
-    type Ret = ();
+    type Ret = Option<(SocketAddr, Option<String>)>;
     type Error = ChannelFormError;
 
-    fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        app: Self::Args,
-    ) -> Result<Option<Self::Ret>, Self::Error> {
+    fn show(&mut self, ui: &mut egui::Ui) -> Result<Option<Self::Ret>, Self::Error> {
         ui.label("Channel Name");
         ui.text_edit_singleline(&mut self.channel_name_input);
 
@@ -58,11 +46,9 @@ impl<'a> Form<'a> for ChannelForm {
                 let addr = SocketAddr::from_str(&self.channel_addr_input)?;
                 let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
 
-                app.new_channel(addr, name)?;
-
-                Ok(Some(()))
+                Ok(Some(Some((addr, name))))
             } else if ui.button("Cancel").clicked() {
-                Ok(Some(()))
+                Ok(Some(None))
             } else {
                 Ok(None)
             }

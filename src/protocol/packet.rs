@@ -1,7 +1,6 @@
 use std::io::{self, Read, Write};
 
 use bitcode::{deserialize, serialize};
-use integer_encoding::{VarIntReader, VarIntWriter};
 use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private, Public},
@@ -11,20 +10,10 @@ use openssl::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{AES_IV_SIZE, AES_KEY_SIZE};
-
-fn read_buffer<R: Read>(reader: &mut R) -> Result<Vec<u8>, io::Error> {
-    let length = reader.read_varint::<u32>()?;
-    let mut data = vec![0; length as usize];
-    reader.read_exact(&mut data)?;
-
-    Ok(data)
-}
-
-fn write_buffer<W: Write>(writer: &mut W, data: &[u8]) -> std::io::Result<()> {
-    writer.write_varint(data.len() as u32)?;
-    writer.write_all(data)
-}
+use super::{
+    AES_IV_SIZE, AES_KEY_SIZE,
+    io::{read_buffer, write_buffer},
+};
 
 /// Structured primitive data carrier
 /// Each packet is signed, and optionally encrypted. If encrypted it also
@@ -37,7 +26,7 @@ pub struct Packet {
 
 impl Packet {
     /// Creates a new packet based on the data, and signs it with the provided private key.
-    pub fn from_data(data: Vec<u8>, private_key: &PKey<Private>) -> Self {
+    fn from_data(data: Vec<u8>, private_key: &PKey<Private>) -> Self {
         let mut signer = Signer::new(MessageDigest::sha256(), private_key).unwrap();
         let signature = signer.sign_oneshot_to_vec(&data).unwrap();
 

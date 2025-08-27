@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, ser::SerializeStruct};
 pub struct Message {
     content: String,
     timestamp: DateTime<Utc>,
-    theirs: bool,
+    ours: bool,
 }
 
 impl Message {
@@ -16,13 +16,13 @@ impl Message {
         Self {
             content,
             timestamp,
-            theirs: false,
+            ours: true,
         }
     }
 
     /// Check if the message was sent by us
-    pub fn is_theirs(&self) -> bool {
-        self.theirs
+    pub fn is_ours(&self) -> bool {
+        self.ours
     }
 
     /// Get the timestamp of the message
@@ -62,7 +62,7 @@ impl<'de> Deserialize<'de> for Message {
         Ok(Message {
             content: helper.content,
             timestamp: helper.timestamp,
-            theirs: true,
+            ours: false,
         })
     }
 }
