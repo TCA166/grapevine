@@ -5,7 +5,7 @@ mod settings;
 pub use settings::SettingsForm;
 
 mod channel_creation;
-pub use channel_creation::ChannelForm;
+pub use channel_creation::{ChannelArgs, ChannelForm};
 
 mod channel_accept_rsa;
 pub use channel_accept_rsa::ChannelAcceptRsaForm;

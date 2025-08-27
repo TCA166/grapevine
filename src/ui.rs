@@ -12,7 +12,10 @@ use egui::{
 use super::{
     app::{Channel, GrapevineApp, PendingConnection},
     handler::UiEventHandler,
-    modals::{ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelForm, ModalForm, SettingsForm},
+    modals::{
+        ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelForm, ModalForm,
+        SettingsForm,
+    },
     protocol::Message,
     settings::Settings,
 };
@@ -219,8 +222,11 @@ impl eframe::App for GrapevineUI {
             .as_mut()
             .and_then(|modal| modal.show(ctx))
         {
-            if let Some((addr, name)) = ret {
-                if let Err(e) = self.app.new_channel(addr, name) {
+            if let Some(args) = ret {
+                if let Err(e) = match args {
+                    ChannelArgs::Rsa(rsa) => self.app.new_channel(rsa.0, rsa.1),
+                    ChannelArgs::Aes(aes) => self.app.new_aes_channel(aes.0, aes.2, aes.3, aes.1),
+                } {
                     self.event_handler
                         .lock()
                         .unwrap()

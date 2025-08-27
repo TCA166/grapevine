@@ -11,7 +11,7 @@ use std::{
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
-    super::protocol::Handshake,
+    super::protocol::{Handshake, ProtocolPath},
     Shared,
     channel::{Channel, ProtocolError},
     events::{HandleChannelCreationError, HandleNewChannel, HandleThreadError},
@@ -122,7 +122,7 @@ impl GrapevineApp {
         let message_handler = self.handler.clone();
         let channel_threads = self.channel_threads.clone();
 
-        let handshake = Handshake::default();
+        let handshake = Handshake::new(ProtocolPath::RsaExchange);
         handshake.to_writer(&mut stream)?;
 
         self.channel_creation_threads
@@ -131,6 +131,44 @@ impl GrapevineApp {
             .push(thread::spawn(
                 move || -> Result<Arc<Channel>, ProtocolError> {
                     match Channel::new(stream, name, message_handler)? {
+                        Some(channel) => {
+                            let channel = Arc::new(channel);
+                            let channel_copy = channel.clone();
+                            channel_threads
+                                .lock()
+                                .unwrap()
+                                .push(thread::spawn(move || add_channel(channels, channel_copy)));
+                            Ok(channel)
+                        }
+                        None => Err(ProtocolError::VerificationError),
+                    }
+                },
+            ));
+        Ok(())
+    }
+
+    pub fn new_aes_channel(
+        &mut self,
+        addr: SocketAddr,
+        our_key: PKey<Private>,
+        their_key: PKey<Public>,
+        name: Option<String>,
+    ) -> Result<(), io::Error> {
+        let mut stream = TcpStream::connect(addr)?;
+
+        let channels = self.channels.clone();
+        let message_handler = self.handler.clone();
+        let channel_threads = self.channel_threads.clone();
+
+        let handshake = Handshake::new(ProtocolPath::AesExchange);
+        handshake.to_writer(&mut stream)?;
+
+        self.channel_creation_threads
+            .lock()
+            .unwrap()
+            .push(thread::spawn(
+                move || -> Result<Arc<Channel>, ProtocolError> {
+                    match Channel::with_keys(stream, our_key, their_key, name, message_handler)? {
                         Some(channel) => {
                             let channel = Arc::new(channel);
                             let channel_copy = channel.clone();
