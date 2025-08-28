@@ -1,4 +1,7 @@
-use std::{fs::read_dir, path::Path};
+use std::{
+    fs::read_dir,
+    path::{Path, PathBuf},
+};
 
 use egui::{
     Frame, MenuBar, PopupCloseBehavior, Response, TextBuffer, Ui, Widget,
@@ -25,12 +28,14 @@ impl<'input, 'path, S: TextBuffer> FilePathInput<'input, 'path, S> {
     }
 
     fn picker_widget(self, ui: &mut Ui) {
-        let mut search_path = Path::new(self.input.as_str());
+        let mut search_path = PathBuf::from(self.input.as_str());
         if !search_path.exists() {
-            search_path = self.default_path;
+            search_path = self.default_path.to_owned();
         } else if !search_path.is_dir() {
-            search_path = search_path.parent().unwrap_or(self.default_path);
+            search_path = search_path.parent().unwrap_or(self.default_path).to_owned();
         }
+
+        search_path = search_path.canonicalize().unwrap();
 
         if let Some(parent) = search_path.parent() {
             if ui.button("⤴").clicked() {
@@ -78,7 +83,7 @@ impl<S: TextBuffer> Widget for FilePathInput<'_, '_, S> {
                                 self.picker_widget(ui);
                             })
                         })
-                });
+                })
             })
             .response
     }
