@@ -41,7 +41,9 @@ pub struct ChannelForm {
     channel_addr_input: String,
     aes_skip: bool,
     public_key_path: String,
+    public_dnd: bool,
     private_key_path: String,
+    private_dnd: bool,
 }
 
 impl<'a> Form<'a> for ChannelForm {
@@ -59,13 +61,15 @@ impl<'a> Form<'a> for ChannelForm {
         ui.add_enabled_ui(self.aes_skip, |ui| {
             Frame::group(ui.style()).show(ui, |ui| {
                 ui.add(FilePathInput::new(
-                    &mut self.public_key_path,
-                    "Recipient public key path",
+                    &mut self.private_key_path,
+                    "Our private key path",
+                    &mut self.private_dnd,
                 ));
 
                 ui.add(FilePathInput::new(
-                    &mut self.private_key_path,
-                    "Our private key path",
+                    &mut self.public_key_path,
+                    "Recipient public key path",
+                    &mut self.public_dnd,
                 ));
             })
         });

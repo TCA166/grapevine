@@ -13,4 +13,3 @@ openssl = "0.10.73"
 serde = "1.0.219"
 derive_more = { version = "2.0.1", features = ["from", "display"] }
 egui-notify = "0.20.0"
-egui_file = "0.23.0"

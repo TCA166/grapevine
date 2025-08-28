@@ -1,40 +1,43 @@
-use egui::{Frame, Response, TextBuffer, Ui, Widget};
-use egui_file::FileDialog;
+use egui::{Frame, Response, Style, TextBuffer, Ui, Widget};
 
-pub struct FilePathInput<'input, 'dialog, S: TextBuffer> {
+pub struct FilePathInput<'input, 'dnd, S: TextBuffer> {
     input: &'input mut S,
     name: &'static str,
-    dialog: &'dialog mut Option<FileDialog>,
+    dnd: &'dnd mut bool,
 }
 
-impl<'input, 'dialog, S: TextBuffer> FilePathInput<'input, 'dialog, S> {
-    pub fn new(
-        input: &'input mut S,
-        name: &'static str,
-        dialog: &'dialog mut Option<FileDialog>,
-    ) -> Self {
-        Self {
-            input,
-            name,
-            dialog,
-        }
+impl<'input, 'dnd, S: TextBuffer> FilePathInput<'input, 'dnd, S> {
+    pub fn new(input: &'input mut S, name: &'static str, dnd: &'dnd mut bool) -> Self {
+        Self { input, name, dnd }
     }
 }
 
 impl<S: TextBuffer> Widget for FilePathInput<'_, '_, S> {
     fn ui(self, ui: &mut Ui) -> Response {
-        Frame::new()
-            .show(ui, |ui| {
-                ui.label(self.name);
+        ui.ctx().input(|input| {
+            if input.pointer.any_click() {
+                *self.dnd = false;
+            }
+        });
 
-                let resp = ui.horizontal(|ui| {
-                    ui.text_edit_singleline(self.input);
+        ui.label(self.name);
+        if *self.dnd {
+            Frame::group(ui.style()).show(ui, |ui| {
+                ui.set_width(ui.available_width());
 
-                    if ui.button("📁").clicked() {
-                        self.dialog.open();
-                    }
-                });
+                ui.label("Drag and drop here");
+
+                ui.input(|input| eprintln!("{:?}", input.raw.dropped_files));
             })
-            .response
+        } else {
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(self.input);
+
+                if ui.button("📁").clicked() {
+                    *self.dnd = true;
+                }
+            })
+        }
+        .response
     }
 }

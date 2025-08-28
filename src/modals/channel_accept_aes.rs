@@ -1,7 +1,6 @@
 use std::{fs, io};
 
 use egui::Ui;
-use egui_file::FileDialog;
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
@@ -13,8 +12,9 @@ pub struct ChannelAcceptAesForm {
     pending: PendingAesHandshake,
     name_input: String,
     public_key: String,
+    public_dnd: bool,
     private_key: String,
-    file_dialog: Option<FileDialog>,
+    private_dnd: bool,
 }
 
 impl ChannelAcceptAesForm {
@@ -23,8 +23,9 @@ impl ChannelAcceptAesForm {
             pending,
             name_input: String::new(),
             public_key: String::new(),
+            public_dnd: false,
             private_key: String::new(),
-            file_dialog: None,
+            private_dnd: false,
         }
     }
 
@@ -49,11 +50,13 @@ impl Form<'_> for ChannelAcceptAesForm {
         ui.add(FilePathInput::new(
             &mut self.private_key,
             "Our private key path",
+            &mut self.private_dnd,
         ));
 
         ui.add(FilePathInput::new(
             &mut self.public_key,
             "Their public key path",
+            &mut self.public_dnd,
         ));
 
         ui.horizontal(|ui| {
