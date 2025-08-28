@@ -12,3 +12,5 @@ pub use channel_accept_rsa::ChannelAcceptRsaForm;
 
 mod channel_accept_aes;
 pub use channel_accept_aes::ChannelAcceptAesForm;
+
+const CUR_PATH: &'static str = ".";

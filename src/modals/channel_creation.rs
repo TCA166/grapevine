@@ -11,7 +11,7 @@ use openssl::{
     pkey::{PKey, Private, Public},
 };
 
-use super::{super::widgets::FilePathInput, modal::Form};
+use super::{super::widgets::FilePathInput, CUR_PATH, modal::Form};
 
 #[derive(Debug, From, Display)]
 pub enum ChannelFormError {
@@ -41,9 +41,7 @@ pub struct ChannelForm {
     channel_addr_input: String,
     aes_skip: bool,
     public_key_path: String,
-    public_dnd: bool,
     private_key_path: String,
-    private_dnd: bool,
 }
 
 impl<'a> Form<'a> for ChannelForm {
@@ -63,13 +61,13 @@ impl<'a> Form<'a> for ChannelForm {
                 ui.add(FilePathInput::new(
                     &mut self.private_key_path,
                     "Our private key path",
-                    &mut self.private_dnd,
+                    &CUR_PATH,
                 ));
 
                 ui.add(FilePathInput::new(
                     &mut self.public_key_path,
                     "Recipient public key path",
-                    &mut self.public_dnd,
+                    &CUR_PATH,
                 ));
             })
         });

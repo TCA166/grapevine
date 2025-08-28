@@ -14,13 +14,17 @@ mod widgets;
 
 use ui::GrapevineUI;
 
+const TITLE: &'static str = env!("CARGO_PKG_NAME");
+
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1000.0, 1000.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1000.0, 1000.0])
+            .with_title(TITLE),
         ..Default::default()
     };
     eframe::run_native(
-        env!("CARGO_PKG_NAME"),
+        TITLE,
         options,
         Box::new(|cc| Ok(Box::new(GrapevineUI::new()))),
     )

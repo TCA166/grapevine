@@ -4,9 +4,8 @@ use std::{
 };
 
 use egui::{
-    Align, Button, CentralPanel, Context, Frame, Layout, PopupCloseBehavior, RichText, ScrollArea,
-    SidePanel, TopBottomPanel, Ui,
-    containers::menu::{MenuBar, MenuConfig},
+    Align, Button, CentralPanel, Context, Frame, Layout, RichText, ScrollArea, SidePanel,
+    TopBottomPanel, Ui,
 };
 
 use super::{
@@ -189,15 +188,7 @@ impl eframe::App for GrapevineUI {
         SidePanel::left("Channels")
             .resizable(false)
             .show(ctx, |ui| {
-                // well all this menu bar business is horribly convoluted
-                MenuBar::new()
-                    .config(
-                        MenuConfig::default()
-                            .close_behavior(PopupCloseBehavior::CloseOnClickOutside),
-                    )
-                    .ui(ui, |ui| {
-                        ui.vertical_centered_justified(|ui| self.channels_panel(ui))
-                    });
+                ui.vertical_centered_justified(|ui| self.channels_panel(ui))
             });
 
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
