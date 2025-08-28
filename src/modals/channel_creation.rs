@@ -1,6 +1,7 @@
 use std::{
     error, fs, io,
     net::{AddrParseError, SocketAddr},
+    path::PathBuf,
     str::FromStr,
 };
 
@@ -11,7 +12,7 @@ use openssl::{
     pkey::{PKey, Private, Public},
 };
 
-use super::{super::widgets::FilePathInput, CUR_PATH, modal::Form};
+use super::{super::widgets::FilePathInput, modal::Form};
 
 #[derive(Debug, From, Display)]
 pub enum ChannelFormError {
@@ -35,13 +36,28 @@ pub enum ChannelArgs {
     Aes((SocketAddr, Option<String>, PKey<Private>, PKey<Public>)),
 }
 
-#[derive(Default)]
 pub struct ChannelForm {
     channel_name_input: String,
     channel_addr_input: String,
     aes_skip: bool,
     public_key_path: String,
     private_key_path: String,
+    default_key_path: PathBuf,
+}
+
+impl ChannelForm {
+    pub fn new(default_key_path: &PathBuf) -> Self {
+        let default_key_path_str = default_key_path.to_string_lossy().to_string();
+
+        Self {
+            channel_addr_input: String::new(),
+            channel_name_input: String::new(),
+            aes_skip: false,
+            public_key_path: default_key_path_str.clone(),
+            private_key_path: default_key_path_str,
+            default_key_path: default_key_path.clone(),
+        }
+    }
 }
 
 impl<'a> Form<'a> for ChannelForm {
@@ -61,13 +77,13 @@ impl<'a> Form<'a> for ChannelForm {
                 ui.add(FilePathInput::new(
                     &mut self.private_key_path,
                     "Our private key path",
-                    &CUR_PATH,
+                    &self.default_key_path,
                 ));
 
                 ui.add(FilePathInput::new(
                     &mut self.public_key_path,
                     "Recipient public key path",
-                    &CUR_PATH,
+                    &self.default_key_path,
                 ));
             })
         });

@@ -1,11 +1,10 @@
-use std::{fs, io};
+use std::{fs, io, path::PathBuf};
 
 use egui::Ui;
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
     super::{app::PendingAesHandshake, widgets::FilePathInput},
-    CUR_PATH,
     modal::Form,
 };
 
@@ -14,15 +13,18 @@ pub struct ChannelAcceptAesForm {
     name_input: String,
     public_key: String,
     private_key: String,
+    default_path: PathBuf,
 }
 
 impl ChannelAcceptAesForm {
-    pub fn new(pending: PendingAesHandshake) -> Self {
+    pub fn new(pending: PendingAesHandshake, default_key_path: &PathBuf) -> Self {
+        let default_key_path_str = default_key_path.to_string_lossy().to_string();
         Self {
             pending,
             name_input: String::new(),
-            public_key: String::new(),
-            private_key: String::new(),
+            public_key: default_key_path_str.clone(),
+            private_key: default_key_path_str,
+            default_path: default_key_path.clone(),
         }
     }
 
@@ -47,13 +49,13 @@ impl Form<'_> for ChannelAcceptAesForm {
         ui.add(FilePathInput::new(
             &mut self.private_key,
             "Our private key path",
-            &CUR_PATH,
+            &self.default_path,
         ));
 
         ui.add(FilePathInput::new(
             &mut self.public_key,
             "Their public key path",
-            &CUR_PATH,
+            &self.default_path,
         ));
 
         ui.horizontal(|ui| {

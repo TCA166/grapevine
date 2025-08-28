@@ -70,7 +70,10 @@ impl GrapevineUI {
         }
 
         if ui.button("Create channel").clicked() {
-            self.channel_modal = Some(ModalForm::new(ChannelForm::default(), "New Channel"));
+            self.channel_modal = Some(ModalForm::new(
+                ChannelForm::new(self.settings.default_key_path()),
+                "New Channel",
+            ));
         }
 
         // first we clear the pending connections
@@ -90,7 +93,10 @@ impl GrapevineUI {
                         match pending {
                             PendingConnection::Aes(aes) => {
                                 self.channel_aes_modal = Some(ModalForm::new(
-                                    ChannelAcceptAesForm::new(aes),
+                                    ChannelAcceptAesForm::new(
+                                        aes,
+                                        self.settings.default_key_path(),
+                                    ),
                                     "Aes Accept",
                                 ))
                             }

@@ -80,7 +80,7 @@ impl<S: TextBuffer> Widget for FilePathInput<'_, '_, S> {
                         )
                         .ui(ui, |ui| {
                             ui.set_max_height(200.);
-                            ui.set_max_width(100.);
+                            ui.set_max_width(200.);
                             ScrollArea::vertical().show(ui, |ui| {
                                 self.picker_widget(ui);
                             })

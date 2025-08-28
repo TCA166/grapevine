@@ -1,18 +1,33 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, path::PathBuf};
 
 const OUR_NAME: &str = "You";
+const DEFAULT_KEY_PATH: &'static str = ".";
 
-#[derive(Default)]
 pub struct Settings {
     listening: Option<SocketAddr>,
     username: Option<String>,
+    default_key_path: PathBuf,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings::new(None, None, None)
+    }
 }
 
 impl Settings {
-    pub fn new(listening: Option<SocketAddr>, username: Option<String>) -> Self {
+    pub fn new(
+        listening: Option<SocketAddr>,
+        username: Option<String>,
+        default_key_path: Option<PathBuf>,
+    ) -> Self {
+        let default_key_path = default_key_path
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_KEY_PATH).canonicalize().unwrap());
+
         Self {
             listening,
             username,
+            default_key_path,
         }
     }
 
@@ -26,5 +41,9 @@ impl Settings {
 
     pub fn listening(&self) -> &Option<SocketAddr> {
         &self.listening
+    }
+
+    pub fn default_key_path(&self) -> &PathBuf {
+        &self.default_key_path
     }
 }
