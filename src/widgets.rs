@@ -4,8 +4,8 @@ use std::{
 };
 
 use egui::{
-    Frame, MenuBar, PopupCloseBehavior, Response, TextBuffer, Ui, Widget,
-    containers::menu::MenuConfig,
+    Frame, PopupCloseBehavior, Response, ScrollArea, TextBuffer, Ui, Widget,
+    containers::menu::{MenuButton, MenuConfig},
 };
 
 pub struct FilePathInput<'input, 'path, S: TextBuffer> {
@@ -73,13 +73,15 @@ impl<S: TextBuffer> Widget for FilePathInput<'_, '_, S> {
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(self.input);
 
-                    MenuBar::new()
+                    MenuButton::new("📂")
                         .config(
                             MenuConfig::default()
                                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside),
                         )
                         .ui(ui, |ui| {
-                            ui.menu_button("📂", |ui| {
+                            ui.set_max_height(200.);
+                            ui.set_max_width(100.);
+                            ScrollArea::vertical().show(ui, |ui| {
                                 self.picker_widget(ui);
                             })
                         })
