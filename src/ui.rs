@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     mem,
     sync::{Arc, Mutex},
 };
@@ -7,6 +8,7 @@ use egui::{
     Align, Button, CentralPanel, Context, Frame, Layout, RichText, ScrollArea, SidePanel,
     TopBottomPanel, Ui,
 };
+use serde_json::to_string;
 
 use super::{
     app::{Channel, GrapevineApp, PendingConnection},
@@ -34,9 +36,8 @@ pub struct GrapevineUI {
 }
 
 impl GrapevineUI {
-    pub fn new() -> Self {
+    pub fn new(settings: Settings) -> Self {
         let event_handler = Arc::new(Mutex::new(UiEventHandler::default()));
-        let settings = Settings::default();
 
         let mut app = GrapevineApp::new();
 
@@ -80,7 +81,7 @@ impl GrapevineUI {
         for pending in self.app.inspect_pending() {
             Frame::group(ui.style()).show(ui, |ui| {
                 let width = ui.available_width();
-                ui.horizontal_centered(|ui| {
+                ui.horizontal(|ui| {
                     ui.set_min_width(width);
                     ui.label(pending.name());
 
@@ -270,5 +271,17 @@ impl eframe::App for GrapevineUI {
         }
 
         self.event_handler.lock().unwrap().ui(ctx);
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        match to_string(&self.settings) {
+            Ok(json) => storage.set_string(type_name::<Settings>(), json),
+            Err(e) => {
+                self.event_handler
+                    .lock()
+                    .unwrap()
+                    .error(format!("Error saving settings: {}", e));
+            }
+        };
     }
 }

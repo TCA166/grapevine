@@ -3,6 +3,9 @@ use std::{net::SocketAddr, path::PathBuf};
 const OUR_NAME: &str = "You";
 const DEFAULT_KEY_PATH: &'static str = ".";
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct Settings {
     listening: Option<SocketAddr>,
     username: Option<String>,
