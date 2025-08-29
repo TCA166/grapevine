@@ -3,10 +3,9 @@ use std::{fs, io, mem, path::PathBuf};
 use egui::Ui;
 use openssl::pkey::{PKey, Private, Public};
 
-use super::{
-    super::{app::PendingAesHandshake, file_picker::FilePathInput},
-    modal::Form,
-};
+use grapevine_lib::PendingAesHandshake;
+
+use super::{super::file_picker::FilePathInput, modal::Form};
 
 pub struct ChannelAcceptAesForm {
     pending: PendingAesHandshake,

@@ -7,7 +7,7 @@ use openssl::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::AES_KEY_SIZE;
+use super::{AES_KEY_SIZE, AesKey};
 
 const PADDING: Padding = Padding::PKCS1_OAEP;
 
@@ -20,7 +20,7 @@ pub struct AesHandshake {
 
 impl AesHandshake {
     /// Creates a new instance of the AES handshake packet
-    pub fn new(aes_key: &[u8; AES_KEY_SIZE], public_key: &PKey<Public>) -> Result<Self, io::Error> {
+    pub fn new(aes_key: &AesKey, public_key: &PKey<Public>) -> Result<Self, io::Error> {
         let mut encryptor = Encrypter::new(public_key)?;
         encryptor.set_rsa_padding(PADDING)?;
         let mut encrypted_aes_key = vec![0; encryptor.encrypt_len(aes_key)?];
@@ -30,10 +30,7 @@ impl AesHandshake {
     }
 
     /// Parses the packet and decrypts the AES key
-    pub fn decrypt_key(
-        &self,
-        private_key: &PKey<Private>,
-    ) -> Result<[u8; AES_KEY_SIZE], io::Error> {
+    pub fn decrypt_key(&self, private_key: &PKey<Private>) -> Result<AesKey, io::Error> {
         let mut decryptor = Decrypter::new(private_key)?;
         decryptor.set_rsa_padding(PADDING)?;
         let mut decrypted_buff = vec![0; decryptor.decrypt_len(&self.encrypted_aes_key)?];
@@ -45,13 +42,12 @@ impl AesHandshake {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use openssl::{rand::rand_bytes, rsa::Rsa};
+    use super::{super::new_aes_key, *};
+    use openssl::rsa::Rsa;
 
     #[test]
     fn test_decrypt_key() {
-        let mut aes_key = [0; AES_KEY_SIZE];
-        rand_bytes(&mut aes_key).unwrap();
+        let aes_key = new_aes_key().unwrap();
 
         let private_key = PKey::from_rsa(Rsa::generate(1024).unwrap()).unwrap();
         let public_raw = private_key.public_key_to_pem().unwrap();

@@ -2,7 +2,9 @@ use std::io;
 
 use egui::Ui;
 
-use super::{super::app::PendingRsaHandshake, modal::Form};
+use grapevine_lib::PendingRsaHandshake;
+
+use super::modal::Form;
 
 pub struct ChannelAcceptRsaForm {
     pending: PendingRsaHandshake,

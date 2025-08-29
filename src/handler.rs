@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use egui::Context;
 use egui_notify::Toasts;
 
-use super::app::EventRecipient;
+use grapevine_lib::EventRecipient;
 
 #[derive(Default)]
 pub struct UiEventHandler {

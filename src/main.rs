@@ -1,9 +1,5 @@
 use std::any::type_name;
 
-mod app;
-
-mod protocol;
-
 mod handler;
 
 mod ui;

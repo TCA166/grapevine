@@ -9,18 +9,18 @@ use chrono::Utc;
 use derive_more::{Display, From};
 use openssl::{
     pkey::{PKey, Private, Public},
-    rand::rand_bytes,
     rsa::Rsa,
 };
 
 use super::{
-    super::protocol::{
-        AES_KEY_SIZE, AesHandshake, FromPacket, IntoPacket, Message, Packet, RSA_KEY_SIZE,
-        RsaHandshake,
-    },
     Shared,
     events::HandleMessage,
+    protocol::{
+        AesHandshake, AesKey, FromPacket, IntoPacket, Message, Packet, RsaHandshake, new_aes_key,
+    },
 };
+
+const RSA_KEY_SIZE: u32 = 2048;
 
 /// An error that has occured during [Packet] exchange
 #[derive(Debug, Display, From)]
@@ -46,11 +46,11 @@ pub struct Channel {
     /// Our key for signing and AES key decryption
     our_rsa_private_key: PKey<Private>,
     /// Our key for encrypting messages
-    our_aes_key: [u8; AES_KEY_SIZE],
+    our_aes_key: AesKey,
     /// The key for checking the signature of messages, and encrypting the AES key
     their_rsa_public_key: PKey<Public>,
     /// The key for decrypting messages
-    their_aes_key: [u8; AES_KEY_SIZE],
+    their_aes_key: AesKey,
     /// An abstract listener for new messages
     message_handler: Shared<dyn HandleMessage>,
 }
@@ -97,8 +97,7 @@ impl Channel {
         name: Option<String>,
         message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Self>, io::Error> {
-        let mut our_aes_key = [0; AES_KEY_SIZE];
-        rand_bytes(&mut our_aes_key)?;
+        let our_aes_key = new_aes_key()?;
 
         let our_aes_handshake = AesHandshake::new(&our_aes_key, &their_key)?;
         our_aes_handshake
@@ -180,6 +179,7 @@ impl Channel {
         &self.messages
     }
 
+    /// Closes the channel
     pub fn close(&self) -> Result<(), io::Error> {
         self.stream.lock().unwrap().shutdown(Shutdown::Both)
     }

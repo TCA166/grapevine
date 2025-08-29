@@ -1,10 +1,10 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use super::{
-    super::protocol::Message,
     Shared,
     channel::{Channel, ProtocolError},
     events::*,
+    protocol::Message,
 };
 
 /// An internal app wide event handler.

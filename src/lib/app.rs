@@ -11,12 +11,12 @@ use std::{
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
-    super::protocol::{Handshake, ProtocolPath},
     Shared,
     channel::{Channel, ProtocolError},
     events::{HandleChannelCreationError, HandleNewChannel, HandleThreadError},
     handler::{EventHandler, EventRecipient},
     listener::{PendingAesHandshake, PendingConnection, PendingRsaHandshake, listener_thread},
+    protocol::{Handshake, ProtocolPath},
 };
 
 type ChannelThreadResult = Result<(), (ProtocolError, Arc<Channel>)>;

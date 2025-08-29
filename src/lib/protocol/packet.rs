@@ -4,15 +4,15 @@ use bitcode::{deserialize, serialize};
 use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private, Public},
-    rand::rand_bytes,
     sign::{Signer, Verifier},
     symm::{Cipher, decrypt, encrypt},
 };
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AES_IV_SIZE, AES_KEY_SIZE,
+    AesIv, AesKey,
     io::{read_buffer, write_buffer},
+    new_aes_iv
 };
 
 /// Structured primitive data carrier
@@ -21,7 +21,7 @@ use super::{
 pub struct Packet {
     data: Vec<u8>,
     signature: Vec<u8>,
-    iv: Option<[u8; AES_IV_SIZE]>,
+    iv: Option<AesIv>,
 }
 
 impl Packet {
@@ -68,10 +68,9 @@ impl Packet {
     }
 
     /// Encrypts the packet
-    pub fn encrypt(&mut self, other_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
+    pub fn encrypt(&mut self, other_aes_key: &AesKey) -> Result<(), io::Error> {
         let cipher = Cipher::aes_256_cbc();
-        let mut iv = [0; AES_IV_SIZE];
-        rand_bytes(&mut iv)?;
+        let iv = new_aes_iv()?;
 
         self.data = encrypt(cipher, other_aes_key, Some(&iv), &self.data)?;
         self.signature = encrypt(cipher, other_aes_key, Some(&iv), &self.signature)?;
@@ -80,7 +79,7 @@ impl Packet {
     }
 
     /// Decrypts the packet
-    pub fn decrypt(&mut self, our_aes_key: &[u8; AES_KEY_SIZE]) -> Result<(), io::Error> {
+    pub fn decrypt(&mut self, our_aes_key: &AesKey) -> Result<(), io::Error> {
         let cipher = Cipher::aes_256_cbc();
         let iv: Option<&[u8]> = if let Some(iv) = &self.iv {
             Some(iv)

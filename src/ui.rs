@@ -10,14 +10,14 @@ use egui::{
 };
 use serde_json::to_string;
 
+use grapevine_lib::{Channel, GrapevineApp, Message, PendingConnection};
+
 use super::{
-    app::{Channel, GrapevineApp, PendingConnection},
     handler::UiEventHandler,
     modals::{
         ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelForm, ModalForm,
         SettingsForm,
     },
-    protocol::Message,
     settings::Settings,
 };
 

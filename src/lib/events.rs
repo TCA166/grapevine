@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use super::{
-    super::protocol::Message,
     channel::{Channel, ProtocolError},
+    protocol::Message,
 };
 
 /// Can handle new messages

@@ -12,10 +12,10 @@ use std::{
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
-    super::protocol::{Handshake, ProtocolPath},
     Shared,
     channel::Channel,
     events::HandleMessage,
+    protocol::{Handshake, ProtocolPath},
 };
 
 /// Generic pending connection
@@ -42,6 +42,7 @@ pub struct PendingAesHandshake {
 }
 
 impl PendingAesHandshake {
+    /// Accept the pending connection, with the provided keys
     pub fn accept(
         self,
         name: Option<String>,
@@ -52,10 +53,12 @@ impl PendingAesHandshake {
         Channel::with_keys(self.inner.stream, our_key, their_key, name, message_handler)
     }
 
+    /// Close the connection
     pub fn reject(self) {
         self.inner.reject();
     }
 
+    /// Name of the connection
     pub fn name(&self) -> &str {
         self.inner.name()
     }
@@ -67,6 +70,7 @@ pub struct PendingRsaHandshake {
 }
 
 impl PendingRsaHandshake {
+    /// Accept the incoming connection. Will perform the RSA handshake
     pub fn accept(
         self,
         name: Option<String>,
@@ -75,10 +79,12 @@ impl PendingRsaHandshake {
         Channel::new(self.inner.stream, name, message_handler)
     }
 
+    /// Rejects the incoming connection
     pub fn reject(self) {
         self.inner.reject()
     }
 
+    /// Gets the name of the connection
     pub fn name(&self) -> &str {
         self.inner.name()
     }
