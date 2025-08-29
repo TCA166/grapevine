@@ -14,7 +14,7 @@ use settings::Settings;
 
 mod modals;
 
-mod widgets;
+mod file_picker;
 
 use serde_json::from_str;
 

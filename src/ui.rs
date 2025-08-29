@@ -64,8 +64,21 @@ impl GrapevineUI {
     fn channels_panel(&mut self, ui: &mut Ui) {
         for channel in self.app.channels().lock().unwrap().iter() {
             let selected = self.selected_channel.as_ref().is_some_and(|c| c == channel);
-            let button = Button::new(RichText::new(channel.name())).selected(selected);
-            if ui.add(button).clicked() {
+            let resp = ui.add(Button::new(RichText::new(channel.name())).selected(selected));
+
+            resp.context_menu(|ui| {
+                if ui.button("Close").clicked() {
+                    if let Err(e) = channel.close() {
+                        self.event_handler
+                            .lock()
+                            .unwrap()
+                            .error(format!("Error closing the channel: {}", e));
+                    }
+                }
+                if ui.button("Save").clicked() {}
+            });
+
+            if resp.clicked() {
                 self.selected_channel = Some(channel.clone());
             }
         }
@@ -240,8 +253,8 @@ impl eframe::App for GrapevineUI {
             .and_then(|modal| modal.show(ctx))
         {
             let pending = self.channel_rsa_modal.take().unwrap().inner().pending();
-            if let Some(name) = res {
-                if let Err(e) = self.app.add_rsa_channel(pending, name) {
+            if res {
+                if let Err(e) = self.app.add_rsa_channel(pending, None) {
                     self.event_handler
                         .lock()
                         .unwrap()

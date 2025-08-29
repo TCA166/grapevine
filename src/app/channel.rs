@@ -1,4 +1,9 @@
-use std::{error, io, net::TcpStream, ops::Deref, sync::Mutex};
+use std::{
+    error, io,
+    net::{Shutdown, TcpStream},
+    ops::Deref,
+    sync::Mutex,
+};
 
 use chrono::Utc;
 use derive_more::{Display, From};
@@ -173,6 +178,10 @@ impl Channel {
     /// Get the messages in the channel
     pub fn messages(&self) -> &Mutex<Vec<Message>> {
         &self.messages
+    }
+
+    pub fn close(&self) -> Result<(), io::Error> {
+        self.stream.lock().unwrap().shutdown(Shutdown::Both)
     }
 }
 

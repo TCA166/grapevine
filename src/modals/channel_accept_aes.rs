@@ -1,10 +1,10 @@
-use std::{fs, io, path::PathBuf};
+use std::{fs, io, mem, path::PathBuf};
 
 use egui::Ui;
 use openssl::pkey::{PKey, Private, Public};
 
 use super::{
-    super::{app::PendingAesHandshake, widgets::FilePathInput},
+    super::{app::PendingAesHandshake, file_picker::FilePathInput},
     modal::Form,
 };
 
@@ -63,7 +63,7 @@ impl Form<'_> for ChannelAcceptAesForm {
                 let name = if self.name_input.is_empty() {
                     None
                 } else {
-                    Some(self.name_input.clone())
+                    Some(mem::take(&mut self.name_input))
                 };
 
                 let private_key = fs::read(&self.private_key)?;

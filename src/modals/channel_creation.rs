@@ -1,5 +1,5 @@
 use std::{
-    error, fs, io,
+    error, fs, io, mem,
     net::{AddrParseError, SocketAddr},
     path::PathBuf,
     str::FromStr,
@@ -12,7 +12,7 @@ use openssl::{
     pkey::{PKey, Private, Public},
 };
 
-use super::{super::widgets::FilePathInput, modal::Form};
+use super::{super::file_picker::FilePathInput, modal::Form};
 
 #[derive(Debug, From, Display)]
 pub enum ChannelFormError {
@@ -91,7 +91,7 @@ impl<'a> Form<'a> for ChannelForm {
         ui.horizontal(|ui| {
             if ui.button("Create").clicked() {
                 let addr = SocketAddr::from_str(&self.channel_addr_input)?;
-                let name = Some(self.channel_name_input.clone()).filter(|s| !s.is_empty());
+                let name = Some(mem::take(&mut self.channel_name_input)).filter(|s| !s.is_empty());
 
                 Ok(Some(Some(match self.aes_skip {
                     false => ChannelArgs::Rsa((addr, name)),
