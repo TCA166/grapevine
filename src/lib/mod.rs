@@ -4,7 +4,7 @@ pub use protocol::Message;
 
 /// [std::net::TcpStream] handling functionality through the [Channel] class
 mod channel;
-pub use channel::Channel;
+pub use channel::{Channel, ChannelDesc};
 
 /// Library-wide events
 mod events;

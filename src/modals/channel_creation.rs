@@ -46,7 +46,7 @@ pub struct ChannelForm {
 }
 
 impl ChannelForm {
-    pub fn new(default_key_path: &PathBuf) -> Self {
+    pub fn new(default_key_path: PathBuf) -> Self {
         let default_key_path_str = default_key_path.to_string_lossy().to_string();
 
         Self {
@@ -55,7 +55,7 @@ impl ChannelForm {
             aes_skip: false,
             public_key_path: default_key_path_str.clone(),
             private_key_path: default_key_path_str,
-            default_key_path: default_key_path.clone(),
+            default_key_path: default_key_path,
         }
     }
 }

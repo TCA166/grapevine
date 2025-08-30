@@ -8,11 +8,15 @@ use super::modal::Form;
 
 pub struct ChannelAcceptRsaForm {
     pending: PendingRsaHandshake,
+    name_input: String,
 }
 
 impl ChannelAcceptRsaForm {
     pub fn new(pending: PendingRsaHandshake) -> Self {
-        ChannelAcceptRsaForm { pending }
+        ChannelAcceptRsaForm {
+            pending,
+            name_input: String::new(),
+        }
     }
 
     pub fn pending(self) -> PendingRsaHandshake {
@@ -22,7 +26,7 @@ impl ChannelAcceptRsaForm {
 
 impl Form<'_> for ChannelAcceptRsaForm {
     type Error = io::Error;
-    type Ret = bool;
+    type Ret = Option<Option<String>>;
 
     fn show(&mut self, ui: &mut Ui) -> Result<Option<Self::Ret>, Self::Error> {
         ui.label(format!(
@@ -30,12 +34,21 @@ impl Form<'_> for ChannelAcceptRsaForm {
             self.pending.name()
         ));
 
+        ui.label("Chosen name");
+        ui.text_edit_singleline(&mut self.name_input);
+
         Ok(ui
             .horizontal(|ui| {
                 if ui.button("Accept").clicked() {
-                    Some(true)
+                    let name = if self.name_input.is_empty() {
+                        None
+                    } else {
+                        Some(self.name_input.clone())
+                    };
+
+                    Some(Some(name))
                 } else if ui.button("Reject").clicked() {
-                    Some(false)
+                    Some(None)
                 } else {
                     None
                 }

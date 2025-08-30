@@ -16,14 +16,14 @@ pub struct ChannelAcceptAesForm {
 }
 
 impl ChannelAcceptAesForm {
-    pub fn new(pending: PendingAesHandshake, default_key_path: &PathBuf) -> Self {
+    pub fn new(pending: PendingAesHandshake, default_key_path: PathBuf) -> Self {
         let default_key_path_str = default_key_path.to_string_lossy().to_string();
         Self {
             pending,
             name_input: String::new(),
             public_key: default_key_path_str.clone(),
             private_key: default_key_path_str,
-            default_path: default_key_path.clone(),
+            default_path: default_key_path,
         }
     }
 

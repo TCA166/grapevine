@@ -10,13 +10,13 @@ use egui::{
 };
 use serde_json::to_string;
 
-use grapevine_lib::{Channel, GrapevineApp, Message, PendingConnection};
+use grapevine_lib::{Channel, ChannelDesc, GrapevineApp, Message, PendingConnection};
 
 use super::{
     handler::UiEventHandler,
     modals::{
-        ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelForm, ModalForm,
-        SettingsForm,
+        ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelForm,
+        ChannelRecreationForm, ModalForm, SettingsForm,
     },
     settings::Settings,
 };
@@ -32,6 +32,9 @@ pub struct GrapevineUI {
     channel_modal: Option<ModalForm<ChannelForm>>,
     channel_rsa_modal: Option<ModalForm<ChannelAcceptRsaForm>>,
     channel_aes_modal: Option<ModalForm<ChannelAcceptAesForm>>,
+    channel_recreation_modal: Option<ModalForm<ChannelRecreationForm>>,
+    // User config
+    saved_channels: Vec<ChannelDesc>,
     settings: Settings,
 }
 
@@ -55,6 +58,8 @@ impl GrapevineUI {
             channel_modal: None,
             channel_rsa_modal: None,
             channel_aes_modal: None,
+            channel_recreation_modal: None,
+            saved_channels: Vec::new(),
             settings: settings,
         }
     }
@@ -75,7 +80,9 @@ impl GrapevineUI {
                             .error(format!("Error closing the channel: {}", e));
                     }
                 }
-                if ui.button("Save").clicked() {}
+                if ui.button("Save").clicked() {
+                    self.saved_channels.push(channel.desc().clone());
+                }
             });
 
             if resp.clicked() {
@@ -85,7 +92,7 @@ impl GrapevineUI {
 
         if ui.button("Create channel").clicked() {
             self.channel_modal = Some(ModalForm::new(
-                ChannelForm::new(self.settings.default_key_path()),
+                ChannelForm::new(self.settings.default_key_path().clone()),
                 "New Channel",
             ));
         }
@@ -109,7 +116,7 @@ impl GrapevineUI {
                                 self.channel_aes_modal = Some(ModalForm::new(
                                     ChannelAcceptAesForm::new(
                                         aes,
-                                        self.settings.default_key_path(),
+                                        self.settings.default_key_path().clone(),
                                     ),
                                     "Aes Accept",
                                 ))
@@ -183,12 +190,24 @@ impl GrapevineUI {
     }
 
     fn top_panel(&mut self, ui: &mut Ui) {
-        if ui.button("Settings").clicked() {
-            self.settings_modal = Some(ModalForm::new(
-                SettingsForm::new(&self.settings),
-                "Settings",
-            ));
+        for desc in &self.saved_channels {
+            let resp = ui.button(desc.name());
+            if resp.clicked() {
+                self.channel_recreation_modal = Some(ModalForm::new(
+                    ChannelRecreationForm::new(desc.clone()),
+                    "Channel recreation",
+                ))
+            }
         }
+
+        ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
+            if ui.button("Settings").clicked() {
+                self.settings_modal = Some(ModalForm::new(
+                    SettingsForm::new(&self.settings),
+                    "Settings",
+                ));
+            }
+        });
     }
 }
 
@@ -201,9 +220,7 @@ impl eframe::App for GrapevineUI {
                     .inner_margin(0),
             )
             .resizable(false)
-            .show(ctx, |ui| {
-                ui.with_layout(Layout::right_to_left(Align::Max), |ui| self.top_panel(ui))
-            });
+            .show(ctx, |ui| ui.horizontal(|ui| self.top_panel(ui)));
 
         SidePanel::left("Channels")
             .resizable(false)
@@ -253,8 +270,8 @@ impl eframe::App for GrapevineUI {
             .and_then(|modal| modal.show(ctx))
         {
             let pending = self.channel_rsa_modal.take().unwrap().inner().pending();
-            if res {
-                if let Err(e) = self.app.add_rsa_channel(pending, None) {
+            if let Some(name) = res {
+                if let Err(e) = self.app.add_rsa_channel(pending, name) {
                     self.event_handler
                         .lock()
                         .unwrap()
@@ -280,6 +297,22 @@ impl eframe::App for GrapevineUI {
                 }
             } else {
                 pending.reject();
+            }
+        }
+
+        if let Some(res) = self
+            .channel_recreation_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            let desc = self.channel_recreation_modal.take().unwrap().inner().desc();
+            if let Some(addr) = res {
+                if let Err(e) = self.app.new_channel_from_desc(addr, desc) {
+                    self.event_handler
+                        .lock()
+                        .unwrap()
+                        .error(format!("Error while recreating: {}", e));
+                }
             }
         }
 

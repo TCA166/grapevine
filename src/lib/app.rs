@@ -12,7 +12,7 @@ use openssl::pkey::{PKey, Private, Public};
 
 use super::{
     Shared,
-    channel::{Channel, ProtocolError},
+    channel::{Channel, ChannelDesc, ProtocolError},
     events::{HandleChannelCreationError, HandleNewChannel, HandleThreadError},
     handler::{EventHandler, EventRecipient},
     listener::{PendingAesHandshake, PendingConnection, PendingRsaHandshake, listener_thread},
@@ -160,6 +160,26 @@ impl GrapevineApp {
             |stream, message_handler| {
                 Channel::with_keys(stream, our_key, their_key, name, message_handler)
             },
+        )
+    }
+
+    /// Recreates a new connection, based on the [ChannelDesc]ription.
+    /// Roughly equivalent to [Self::new_aes_channel], except uses a compact
+    /// struct for argument passing.
+    ///
+    /// ## Args
+    ///
+    /// - addr: the address to connect to
+    /// - desc: The channel description struct
+    pub fn new_channel_from_desc(
+        &mut self,
+        addr: SocketAddr,
+        desc: ChannelDesc,
+    ) -> Result<(), io::Error> {
+        self.new_channel(
+            addr,
+            ProtocolPath::AesExchange,
+            |stream, message_handler| Channel::from_desc(stream, desc, message_handler),
         )
     }
 

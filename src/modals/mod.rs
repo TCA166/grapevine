@@ -12,3 +12,6 @@ pub use channel_accept_rsa::ChannelAcceptRsaForm;
 
 mod channel_accept_aes;
 pub use channel_accept_aes::ChannelAcceptAesForm;
+
+mod channel_recreation;
+pub use channel_recreation::ChannelRecreationForm;

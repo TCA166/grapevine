@@ -38,19 +38,30 @@ impl error::Error for ProtocolError {
     }
 }
 
+#[derive(Clone)]
+pub struct ChannelDesc {
+    name: String,
+    /// Our key for signing and AES key decryption
+    our_rsa_private_key: PKey<Private>,
+    /// The key for checking the signature of messages, and encrypting the AES key
+    their_rsa_public_key: PKey<Public>,
+}
+
+impl ChannelDesc {
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
 /// A channel for exchanging messages, through a specified stream
 pub struct Channel {
     stream: Mutex<TcpStream>,
-    name: String,
     messages: Mutex<Vec<Message>>,
-    /// Our key for signing and AES key decryption
-    our_rsa_private_key: PKey<Private>,
-    /// Our key for encrypting messages
-    our_aes_key: AesKey,
-    /// The key for checking the signature of messages, and encrypting the AES key
-    their_rsa_public_key: PKey<Public>,
+    desc: ChannelDesc,
     /// The key for decrypting messages
     their_aes_key: AesKey,
+    /// Our key for encrypting messages
+    our_aes_key: AesKey,
     /// An abstract listener for new messages
     message_handler: Shared<dyn HandleMessage>,
 }
@@ -91,37 +102,47 @@ impl Channel {
 
     /// Create a new channel, assuming the RSA handshake has already happened
     pub fn with_keys(
-        mut stream: TcpStream,
-        our_key: PKey<Private>,
-        their_key: PKey<Public>,
+        stream: TcpStream,
+        our_rsa_private_key: PKey<Private>,
+        their_rsa_public_key: PKey<Public>,
         name: Option<String>,
+        message_handler: Shared<dyn HandleMessage>,
+    ) -> Result<Option<Self>, io::Error> {
+        let desc = ChannelDesc {
+            name: name.unwrap_or(stream.peer_addr().unwrap().to_string()),
+            our_rsa_private_key,
+            their_rsa_public_key,
+        };
+        Self::from_desc(stream, desc, message_handler)
+    }
+
+    /// Create a new channel, utilizing a previously saved [ChannelDesc]
+    pub fn from_desc(
+        mut stream: TcpStream,
+        desc: ChannelDesc,
         message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Self>, io::Error> {
         let our_aes_key = new_aes_key()?;
 
-        let our_aes_handshake = AesHandshake::new(&our_aes_key, &their_key)?;
+        let our_aes_handshake = AesHandshake::new(&our_aes_key, &desc.their_rsa_public_key)?;
         our_aes_handshake
-            .into_packet(&our_key)
+            .into_packet(&desc.our_rsa_private_key)
             .to_writer(&mut stream)?;
 
         let their_aes_handshake_packet = Packet::from_reader(&mut stream)?;
-        if !their_aes_handshake_packet.verify(&their_key) {
+        if !their_aes_handshake_packet.verify(&desc.their_rsa_public_key) {
             return Ok(None);
         }
         let their_aes_key = AesHandshake::from_packet(&their_aes_handshake_packet)
-            .decrypt_key(&our_key)
+            .decrypt_key(&desc.our_rsa_private_key)
             .unwrap();
-
-        let name = name.unwrap_or(stream.peer_addr().unwrap().to_string());
 
         Ok(Some(Self {
             stream: Mutex::new(stream),
-            name: name,
             messages: Mutex::new(Vec::new()),
-            our_rsa_private_key: our_key,
-            our_aes_key: our_aes_key,
-            their_rsa_public_key: their_key,
-            their_aes_key: their_aes_key,
+            desc,
+            our_aes_key,
+            their_aes_key,
             message_handler: message_handler,
         }))
     }
@@ -133,7 +154,7 @@ impl Channel {
         loop {
             let mut packet = Packet::from_reader(&mut stream)?;
             packet.decrypt(&self.our_aes_key)?;
-            if !packet.verify(&self.their_rsa_public_key) {
+            if !packet.verify(&self.desc.their_rsa_public_key) {
                 return Err(ProtocolError::VerificationError);
             }
 
@@ -162,7 +183,7 @@ impl Channel {
 
     /// Send a message to the channel
     pub fn send_message(&self, message: Message) -> Result<(), ProtocolError> {
-        let mut packet = message.into_packet(&self.our_rsa_private_key);
+        let mut packet = message.into_packet(&self.desc.our_rsa_private_key);
         packet.encrypt(&self.their_aes_key)?;
         self.messages.lock().unwrap().push(message);
         packet.to_writer(&mut self.stream.lock().unwrap().deref())?;
@@ -171,7 +192,7 @@ impl Channel {
 
     /// Get the name of the channel
     pub fn name(&self) -> &str {
-        &self.name
+        &self.desc.name
     }
 
     /// Get the messages in the channel
@@ -183,10 +204,14 @@ impl Channel {
     pub fn close(&self) -> Result<(), io::Error> {
         self.stream.lock().unwrap().shutdown(Shutdown::Both)
     }
+
+    pub fn desc(&self) -> &ChannelDesc {
+        &self.desc
+    }
 }
 
 impl PartialEq for Channel {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
+        self.desc.name == other.desc.name
     }
 }
