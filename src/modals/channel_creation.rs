@@ -12,7 +12,9 @@ use openssl::{
     pkey::{PKey, Private, Public},
 };
 
-use super::{super::file_picker::FilePathInput, modal::Form};
+use egui_path_picker::PathPicker;
+
+use super::modal::Form;
 
 #[derive(Debug, From, Display, Error)]
 pub enum ChannelFormError {
@@ -64,15 +66,15 @@ impl<'a> Form<'a> for ChannelForm {
         ui.checkbox(&mut self.aes_skip, "Known keys");
         ui.add_enabled_ui(self.aes_skip, |ui| {
             Frame::group(ui.style()).show(ui, |ui| {
-                ui.add(FilePathInput::new(
+                ui.label("Our private key path");
+                ui.add(PathPicker::new(
                     &mut self.private_key_path,
-                    "Our private key path",
                     &self.default_key_path,
                 ));
 
-                ui.add(FilePathInput::new(
+                ui.label("Recipient public key path");
+                ui.add(PathPicker::new(
                     &mut self.public_key_path,
-                    "Recipient public key path",
                     &self.default_key_path,
                 ));
             })

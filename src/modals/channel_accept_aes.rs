@@ -3,9 +3,10 @@ use std::{fs, io, mem, path::PathBuf};
 use egui::Ui;
 use openssl::pkey::{PKey, Private, Public};
 
+use egui_path_picker::PathPicker;
 use grapevine_lib::PendingAesHandshake;
 
-use super::{super::file_picker::FilePathInput, modal::Form};
+use super::modal::Form;
 
 pub struct ChannelAcceptAesForm {
     pending: PendingAesHandshake,
@@ -45,17 +46,11 @@ impl Form<'_> for ChannelAcceptAesForm {
         ui.label("Given name");
         ui.text_edit_singleline(&mut self.name_input);
 
-        ui.add(FilePathInput::new(
-            &mut self.private_key,
-            "Our private key path",
-            &self.default_path,
-        ));
+        ui.label("Our private key path");
+        ui.add(PathPicker::new(&mut self.private_key, &self.default_path));
 
-        ui.add(FilePathInput::new(
-            &mut self.public_key,
-            "Their public key path",
-            &self.default_path,
-        ));
+        ui.label("Their public key path");
+        ui.add(PathPicker::new(&mut self.public_key, &self.default_path));
 
         ui.horizontal(|ui| {
             if ui.button("Connect").clicked() {

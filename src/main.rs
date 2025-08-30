@@ -10,8 +10,6 @@ use settings::Settings;
 
 mod modals;
 
-mod file_picker;
-
 use serde_json::from_str;
 
 const TITLE: &'static str = env!("CARGO_PKG_NAME");
