@@ -15,3 +15,6 @@ pub use channel_accept_aes::ChannelAcceptAesForm;
 
 mod channel_recreation;
 pub use channel_recreation::ChannelRecreationForm;
+
+mod channel_desc_edit;
+pub use channel_desc_edit::ChannelDescEditForm;

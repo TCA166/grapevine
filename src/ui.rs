@@ -15,7 +15,7 @@ use grapevine_lib::{Channel, ChannelDesc, GrapevineApp, Message, PendingConnecti
 use super::{
     handler::UiEventHandler,
     modals::{
-        ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelForm,
+        ChannelAcceptAesForm, ChannelAcceptRsaForm, ChannelArgs, ChannelDescEditForm, ChannelForm,
         ChannelRecreationForm, ModalForm, SettingsForm,
     },
     settings::Settings,
@@ -33,6 +33,7 @@ pub struct GrapevineUI {
     channel_rsa_modal: Option<ModalForm<ChannelAcceptRsaForm>>,
     channel_aes_modal: Option<ModalForm<ChannelAcceptAesForm>>,
     channel_recreation_modal: Option<ModalForm<ChannelRecreationForm>>,
+    channel_desc_edit_modal: Option<ModalForm<ChannelDescEditForm>>,
     // User config
     saved_channels: Vec<ChannelDesc>,
     settings: Settings,
@@ -59,6 +60,7 @@ impl GrapevineUI {
             channel_rsa_modal: None,
             channel_aes_modal: None,
             channel_recreation_modal: None,
+            channel_desc_edit_modal: None,
             saved_channels: Vec::new(),
             settings: settings,
         }
@@ -190,15 +192,35 @@ impl GrapevineUI {
     }
 
     fn top_panel(&mut self, ui: &mut Ui) {
-        for desc in &self.saved_channels {
-            let resp = ui.button(desc.name());
-            if resp.clicked() {
-                self.channel_recreation_modal = Some(ModalForm::new(
-                    ChannelRecreationForm::new(desc.clone()),
-                    "Channel recreation",
-                ))
-            }
-        }
+        ScrollArea::horizontal()
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                self.saved_channels.retain_mut(|desc| {
+                    let resp = ui.button(desc.name());
+                    if resp.clicked() {
+                        self.channel_recreation_modal = Some(ModalForm::new(
+                            ChannelRecreationForm::new(desc.clone()),
+                            "Channel recreation",
+                        ))
+                    }
+
+                    let mut retain = true;
+                    resp.context_menu(|ui| {
+                        if ui.button("Remove").clicked() {
+                            retain = false;
+                        }
+
+                        if ui.button("Edit").clicked() {
+                            self.channel_desc_edit_modal = Some(ModalForm::new(
+                                ChannelDescEditForm::new(desc.clone()),
+                                "Edit Channel",
+                            ));
+                            retain = false;
+                        }
+                    });
+                    return retain;
+                });
+            });
 
         ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
             if ui.button("Settings").clicked() {
@@ -217,7 +239,7 @@ impl eframe::App for GrapevineUI {
             .frame(
                 Frame::new()
                     .fill(ctx.style().visuals.panel_fill)
-                    .inner_margin(0),
+                    .inner_margin(10),
             )
             .resizable(false)
             .show(ctx, |ui| ui.horizontal(|ui| self.top_panel(ui)));
@@ -225,7 +247,11 @@ impl eframe::App for GrapevineUI {
         SidePanel::left("Channels")
             .resizable(false)
             .show(ctx, |ui| {
-                ui.vertical_centered_justified(|ui| self.channels_panel(ui))
+                ui.vertical_centered_justified(|ui| {
+                    ScrollArea::vertical()
+                        .auto_shrink([false; 2])
+                        .show(ui, |ui| self.channels_panel(ui))
+                })
             });
 
         CentralPanel::default().show(ctx, |ui| self.central_panel(ctx, ui));
@@ -314,6 +340,15 @@ impl eframe::App for GrapevineUI {
                         .error(format!("Error while recreating: {}", e));
                 }
             }
+        }
+
+        if let Some(_) = self
+            .channel_desc_edit_modal
+            .as_mut()
+            .and_then(|modal| modal.show(ctx))
+        {
+            let desc = self.channel_desc_edit_modal.take().unwrap().inner().desc();
+            self.saved_channels.push(desc);
         }
 
         self.event_handler.lock().unwrap().ui(ctx);

@@ -1,11 +1,11 @@
 use std::{
-    error, fs, io, mem,
+    fs, io, mem,
     net::{AddrParseError, SocketAddr},
     path::PathBuf,
     str::FromStr,
 };
 
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use egui::{Frame, Ui};
 use openssl::{
     error::ErrorStack,
@@ -14,21 +14,11 @@ use openssl::{
 
 use super::{super::file_picker::FilePathInput, modal::Form};
 
-#[derive(Debug, From, Display)]
+#[derive(Debug, From, Display, Error)]
 pub enum ChannelFormError {
     InvalidIp(AddrParseError),
     IoError(io::Error),
     OpenSSL(ErrorStack),
-}
-
-impl error::Error for ChannelFormError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            Self::InvalidIp(e) => Some(e),
-            Self::IoError(e) => Some(e),
-            Self::OpenSSL(e) => Some(e),
-        }
-    }
 }
 
 pub enum ChannelArgs {

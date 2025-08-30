@@ -17,7 +17,7 @@ pub struct ChannelRecreationForm {
 impl ChannelRecreationForm {
     pub fn new(desc: ChannelDesc) -> Self {
         Self {
-            channel_addr_input: String::new(),
+            channel_addr_input: desc.last_addr().to_string(),
             desc,
         }
     }

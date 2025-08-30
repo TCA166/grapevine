@@ -1,6 +1,6 @@
 use std::{
     error, io,
-    net::{Shutdown, TcpStream},
+    net::{Shutdown, SocketAddr, TcpStream},
     ops::Deref,
     sync::Mutex,
 };
@@ -41,6 +41,7 @@ impl error::Error for ProtocolError {
 #[derive(Clone)]
 pub struct ChannelDesc {
     name: String,
+    last_addr: SocketAddr,
     /// Our key for signing and AES key decryption
     our_rsa_private_key: PKey<Private>,
     /// The key for checking the signature of messages, and encrypting the AES key
@@ -50,6 +51,31 @@ pub struct ChannelDesc {
 impl ChannelDesc {
     pub fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    pub fn last_addr(&self) -> &SocketAddr {
+        &self.last_addr
+    }
+
+    pub fn rename(&mut self, new: String) {
+        self.name = new;
+    }
+
+    pub fn change_addr(&mut self, addr: SocketAddr) {
+        self.last_addr = addr;
+    }
+}
+
+impl PartialEq for ChannelDesc {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.last_addr == other.last_addr
+            && self
+                .our_rsa_private_key
+                .public_eq(&other.our_rsa_private_key)
+            && self
+                .their_rsa_public_key
+                .public_eq(&other.their_rsa_public_key)
     }
 }
 
@@ -108,8 +134,10 @@ impl Channel {
         name: Option<String>,
         message_handler: Shared<dyn HandleMessage>,
     ) -> Result<Option<Self>, io::Error> {
+        let last_addr = stream.peer_addr()?;
         let desc = ChannelDesc {
-            name: name.unwrap_or(stream.peer_addr().unwrap().to_string()),
+            name: name.unwrap_or(last_addr.to_string()),
+            last_addr,
             our_rsa_private_key,
             their_rsa_public_key,
         };
@@ -192,7 +220,7 @@ impl Channel {
 
     /// Get the name of the channel
     pub fn name(&self) -> &str {
-        &self.desc.name
+        self.desc.name()
     }
 
     /// Get the messages in the channel
