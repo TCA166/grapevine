@@ -9,22 +9,18 @@ repository = "https://github.com/TCA166/grapevine"
 license = "GPL-3.0-only"
 
 [dependencies]
-chrono = { version = "0.4.41", features = ["serde"] }
-bitcode = { version = "0.6.7", features = ["serde"] }
 eframe = { version = "0.32.1", features = ["persistence"] }
 egui = "0.32.1"
-integer-encoding = "4.0.2"
 openssl = { version = "0.10.73", features = ["vendored"] }
 serde = "1.0.219"
 derive_more = { version = "2.0.1", features = ["from", "display", "error"] }
 egui-notify = "0.20.0"
-base64 = "0.22.1"
 serde_json = "1.0.143"
 egui_path_picker = "0.1.1"
+grapevine_lib = { path = "lib" }
 
-[lib]
-name = "grapevine_lib"
-path = "src/lib/mod.rs"
+[workspace]
+members = ["lib"]
 
 [[bin]]
 name = "grapevine"

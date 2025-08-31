@@ -1,12 +1,12 @@
 use std::{
-    error, io,
+    io,
     net::{Shutdown, SocketAddr, TcpStream},
     ops::Deref,
     sync::Mutex,
 };
 
 use chrono::Utc;
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use openssl::{
     error::ErrorStack,
     pkey::{PKey, Private, Public},
@@ -25,23 +25,12 @@ use super::{
 const RSA_KEY_SIZE: u32 = 2048;
 
 /// An error that has occured during [Packet] exchange
-#[derive(Debug, Display, From)]
+#[derive(Debug, Display, From, Error)]
 pub enum ProtocolError {
     IoError(io::Error),
     VerificationError,
     SerializationError(bitcode::Error),
     OpenSSLError(ErrorStack),
-}
-
-impl error::Error for ProtocolError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            Self::IoError(e) => Some(e),
-            Self::SerializationError(e) => Some(e),
-            Self::OpenSSLError(e) => Some(e),
-            _ => None,
-        }
-    }
 }
 
 fn serialize_private_key<S: Serializer>(
