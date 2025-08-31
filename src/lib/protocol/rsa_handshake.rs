@@ -44,12 +44,12 @@ mod tests {
         let private_key = PKey::from_rsa(Rsa::generate(2048).unwrap()).unwrap();
         let handshake = RsaHandshake::new(&private_key);
         let public_key = handshake.public_key();
-        let packet = handshake.into_packet(&private_key);
+        let packet = handshake.into_packet(&private_key).unwrap();
         let mut data = Vec::new();
         packet.to_writer(&mut data).unwrap();
         let decoded_packet = Packet::from_reader(&mut Cursor::new(data)).unwrap();
         assert!(decoded_packet.verify(&public_key));
-        let decoded = RsaHandshake::from_packet(&decoded_packet);
+        let decoded = RsaHandshake::from_packet(&decoded_packet).unwrap();
         assert!(decoded.public_key().public_eq(&private_key));
     }
 }

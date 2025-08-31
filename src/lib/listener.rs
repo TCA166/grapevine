@@ -1,5 +1,4 @@
 use std::{
-    io,
     net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
     sync::{
         Arc,
@@ -13,7 +12,7 @@ use openssl::pkey::{PKey, Private, Public};
 
 use super::{
     Shared,
-    channel::Channel,
+    channel::{Channel, ProtocolError},
     events::HandleMessage,
     protocol::{Handshake, ProtocolPath},
 };
@@ -49,7 +48,7 @@ impl PendingAesHandshake {
         our_key: PKey<Private>,
         their_key: PKey<Public>,
         message_handler: Shared<dyn HandleMessage>,
-    ) -> Result<Option<Channel>, io::Error> {
+    ) -> Result<Option<Channel>, ProtocolError> {
         Channel::with_keys(self.inner.stream, our_key, their_key, name, message_handler)
     }
 
@@ -75,7 +74,7 @@ impl PendingRsaHandshake {
         self,
         name: Option<String>,
         message_handler: Shared<dyn HandleMessage>,
-    ) -> Result<Option<Channel>, io::Error> {
+    ) -> Result<Option<Channel>, ProtocolError> {
         Channel::new(self.inner.stream, name, message_handler)
     }
 

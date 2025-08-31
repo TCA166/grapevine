@@ -1,6 +1,9 @@
-use std::io::{self, Read, Write};
+use std::{
+    error,
+    io::{self, Read, Write},
+};
 
-use bitcode::{deserialize, serialize};
+use bitcode::{self, deserialize, serialize};
 use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private, Public},
@@ -12,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AesIv, AesKey,
     io::{read_buffer, write_buffer},
-    new_aes_iv
+    new_aes_iv,
 };
 
 /// Structured primitive data carrier
@@ -101,23 +104,113 @@ impl Packet {
     }
 }
 
-pub trait IntoPacket {
-    fn into_packet(&self, private_key: &PKey<Private>) -> Packet;
+pub trait IntoPacket<E: error::Error> {
+    fn into_packet(&self, private_key: &PKey<Private>) -> Result<Packet, E>;
 }
 
-impl<T: Serialize> IntoPacket for T {
-    fn into_packet(&self, private_key: &PKey<Private>) -> Packet {
-        let data = serialize(self).unwrap();
-        Packet::from_data(data, private_key)
+impl<T: Serialize> IntoPacket<bitcode::Error> for T {
+    fn into_packet(&self, private_key: &PKey<Private>) -> Result<Packet, bitcode::Error> {
+        Ok(Packet::from_data(serialize(self)?, private_key))
     }
 }
 
-pub trait FromPacket<'de> {
-    fn from_packet(packet: &'de Packet) -> Self;
+pub trait FromPacket<'de, E: error::Error>: Sized {
+    fn from_packet(packet: &'de Packet) -> Result<Self, E>;
 }
 
-impl<'de, T: Deserialize<'de>> FromPacket<'de> for T {
-    fn from_packet(packet: &'de Packet) -> T {
-        deserialize(&packet.data).unwrap()
+impl<'de, T: Deserialize<'de>> FromPacket<'de, bitcode::Error> for T {
+    fn from_packet(packet: &'de Packet) -> Result<T, bitcode::Error> {
+        deserialize(&packet.data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use openssl::pkey::PKey;
+    use openssl::rsa::Rsa;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_packet_write_and_read_roundtrip() {
+        let rsa = Rsa::generate(2048).unwrap();
+        let private = PKey::from_rsa(rsa).unwrap();
+        let data = b"test data".to_vec();
+        let packet = Packet::from_data(data.clone(), &private);
+
+        let mut buf = Vec::new();
+        packet.to_writer(&mut buf).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let read_packet = Packet::from_reader(&mut cursor).unwrap();
+
+        assert_eq!(read_packet.data, data);
+        assert_eq!(read_packet.signature, packet.signature);
+        assert_eq!(read_packet.iv, packet.iv);
+    }
+
+    #[test]
+    fn test_packet_signature_verification() {
+        let rsa = Rsa::generate(2048).unwrap();
+        let private = PKey::from_rsa(rsa).unwrap();
+        let public = PKey::public_key_from_pem(&private.public_key_to_pem().unwrap()).unwrap();
+
+        let data = b"verify me".to_vec();
+        let packet = Packet::from_data(data, &private);
+
+        assert!(packet.verify(&public));
+    }
+
+    #[test]
+    fn test_packet_signature_verification_fails_on_tamper() {
+        let rsa = Rsa::generate(2048).unwrap();
+        let private = PKey::from_rsa(rsa).unwrap();
+        let public = PKey::public_key_from_pem(&private.public_key_to_pem().unwrap()).unwrap();
+
+        let data = b"verify me".to_vec();
+        let mut packet = Packet::from_data(data, &private);
+
+        // Tamper with the data
+        packet.data[0] ^= 0xFF;
+        assert!(!packet.verify(&public));
+    }
+
+    #[test]
+    fn test_packet_encrypt_decrypt_roundtrip() {
+        let rsa = Rsa::generate(2048).unwrap();
+        let private = PKey::from_rsa(rsa).unwrap();
+        let data = b"secret data".to_vec();
+        let mut packet = Packet::from_data(data.clone(), &private);
+
+        // Generate a random AES key (32 bytes for AES-256)
+        let aes_key: AesKey = [42u8; 32];
+
+        packet.encrypt(&aes_key).unwrap();
+        assert!(packet.iv.is_some());
+        // Data and signature should be encrypted (not equal to original)
+        assert_ne!(packet.data, data);
+
+        packet.decrypt(&aes_key).unwrap();
+        assert_eq!(packet.data, data);
+    }
+
+    #[test]
+    fn test_into_packet_and_from_packet_traits() {
+        let rsa = Rsa::generate(2048).unwrap();
+        let private = PKey::from_rsa(rsa).unwrap();
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Dummy {
+            a: u32,
+            b: String,
+        }
+
+        let dummy = Dummy {
+            a: 42,
+            b: "hello".to_string(),
+        };
+        let packet = dummy.into_packet(&private).unwrap();
+        let recovered: Dummy = <Dummy as FromPacket<bitcode::Error>>::from_packet(&packet).unwrap();
+        assert_eq!(dummy, recovered);
     }
 }

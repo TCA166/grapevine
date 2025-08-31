@@ -63,3 +63,41 @@ impl Default for Handshake {
         Self::new(ProtocolPath::default())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_handshake_default() {
+        let h = Handshake::default();
+        assert!(matches!(h.path, ProtocolPath::RsaExchange));
+        assert!(h.version_ok());
+    }
+
+    #[test]
+    fn test_handshake_version_ok() {
+        let h = Handshake::new(ProtocolPath::AesExchange);
+        assert!(h.version_ok());
+    }
+
+    #[test]
+    fn test_handshake_next() {
+        let h = Handshake::new(ProtocolPath::AesExchange);
+        assert!(matches!(h.next(), ProtocolPath::AesExchange));
+    }
+
+    #[test]
+    fn test_handshake_serialize_deserialize() {
+        let handshake = Handshake::new(ProtocolPath::AesExchange);
+        let mut buf = Vec::new();
+        handshake.to_writer(&mut buf).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let deserialized = Handshake::from_reader(&mut cursor).unwrap();
+
+        assert!(matches!(deserialized.path, ProtocolPath::AesExchange));
+        assert_eq!(deserialized.version, handshake.version);
+    }
+}

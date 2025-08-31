@@ -10,11 +10,12 @@ pub struct Settings {
     listening: Option<SocketAddr>,
     username: Option<String>,
     default_key_path: PathBuf,
+    save_channels: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings::new(None, None, None)
+        Settings::new(None, None, None, false)
     }
 }
 
@@ -23,6 +24,7 @@ impl Settings {
         listening: Option<SocketAddr>,
         username: Option<String>,
         default_key_path: Option<PathBuf>,
+        save_channels: bool,
     ) -> Self {
         let default_key_path = default_key_path
             .unwrap_or_else(|| PathBuf::from(DEFAULT_KEY_PATH).canonicalize().unwrap());
@@ -31,6 +33,7 @@ impl Settings {
             listening,
             username,
             default_key_path,
+            save_channels,
         }
     }
 
@@ -48,5 +51,9 @@ impl Settings {
 
     pub fn default_key_path(&self) -> &PathBuf {
         &self.default_key_path
+    }
+
+    pub fn save_channels(&self) -> bool {
+        self.save_channels
     }
 }

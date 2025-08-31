@@ -1,5 +1,4 @@
 use std::{
-    io,
     net::{SocketAddr, TcpStream},
     sync::{
         Arc, Mutex,
@@ -74,8 +73,9 @@ pub struct GrapevineApp {
     /// Incoming connections we aren't sure we want to accept
     pending_connections: Shared<Vec<PendingConnection>>,
 
-    /// Thread responsible for listening to new incoming connections
+    /// Control mechanism that allows us to stop the [Self::server_thread]
     listening: Arc<AtomicBool>,
+    /// Thread responsible for listening to new incoming connections
     server_thread: Option<JoinHandle<()>>,
     /// Threads listening for new messages
     channel_threads: Shared<Vec<JoinHandle<ChannelThreadResult>>>,
@@ -130,7 +130,7 @@ impl GrapevineApp {
         &mut self,
         addr: SocketAddr,
         name: Option<String>,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(), ProtocolError> {
         self.new_channel(
             addr,
             ProtocolPath::RsaExchange,
@@ -153,7 +153,7 @@ impl GrapevineApp {
         our_key: PKey<Private>,
         their_key: PKey<Public>,
         name: Option<String>,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(), ProtocolError> {
         self.new_channel(
             addr,
             ProtocolPath::AesExchange,
@@ -175,7 +175,7 @@ impl GrapevineApp {
         &mut self,
         addr: SocketAddr,
         desc: ChannelDesc,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(), ProtocolError> {
         self.new_channel(
             addr,
             ProtocolPath::AesExchange,
@@ -196,8 +196,8 @@ impl GrapevineApp {
         path: ProtocolPath,
         creator: impl 'static
         + Send
-        + FnOnce(TcpStream, Shared<EventHandler>) -> Result<Option<Channel>, io::Error>,
-    ) -> Result<(), io::Error> {
+        + FnOnce(TcpStream, Shared<EventHandler>) -> Result<Option<Channel>, ProtocolError>,
+    ) -> Result<(), ProtocolError> {
         let mut stream = TcpStream::connect(addr)?;
 
         let channels = self.channels.clone();

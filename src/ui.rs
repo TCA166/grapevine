@@ -40,7 +40,7 @@ pub struct GrapevineUI {
 }
 
 impl GrapevineUI {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings, saved_channels: Vec<ChannelDesc>) -> Self {
         let event_handler = Arc::new(Mutex::new(UiEventHandler::default()));
 
         let mut app = GrapevineApp::new();
@@ -61,7 +61,7 @@ impl GrapevineUI {
             channel_aes_modal: None,
             channel_recreation_modal: None,
             channel_desc_edit_modal: None,
-            saved_channels: Vec::new(),
+            saved_channels,
             settings: settings,
         }
     }
@@ -355,6 +355,18 @@ impl eframe::App for GrapevineUI {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        if self.settings.save_channels() {
+            match to_string(&self.saved_channels) {
+                Ok(json) => storage.set_string(type_name::<ChannelDesc>(), json),
+                Err(e) => {
+                    self.event_handler
+                        .lock()
+                        .unwrap()
+                        .error(format!("Error saving channels: {}", e));
+                }
+            }
+        }
+
         match to_string(&self.settings) {
             Ok(json) => storage.set_string(type_name::<Settings>(), json),
             Err(e) => {

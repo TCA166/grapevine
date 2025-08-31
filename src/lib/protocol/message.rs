@@ -66,3 +66,44 @@ impl<'de> Deserialize<'de> for Message {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_message_new_sets_fields() {
+        let msg = Message::new("hello".to_string());
+        assert_eq!(msg.content(), "hello");
+        assert!(msg.is_ours());
+        // Timestamp should be close to now
+        let now = Utc::now();
+        assert!((now - *msg.timestamp()).num_seconds().abs() < 5);
+    }
+
+    #[test]
+    fn test_message_serialize_deserialize() {
+        let msg = Message::new("test content".to_string());
+        let serialized = serde_json::to_string(&msg).unwrap();
+        let deserialized: Message = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.content(), "test content");
+        assert!(
+            !deserialized.is_ours(),
+            "Deserialized message should not be ours"
+        );
+        assert_eq!(deserialized.timestamp(), msg.timestamp());
+    }
+
+    #[test]
+    fn test_message_deserialize_sets_ours_false() {
+        let msg = Message::new("abc".to_string());
+        let serialized = serde_json::to_string(&msg).unwrap();
+        let mut deserialized: Message = serde_json::from_str(&serialized).unwrap();
+        assert!(!deserialized.is_ours());
+        // Changing the content should not affect the 'ours' field
+        deserialized.ours = true;
+        assert!(deserialized.is_ours());
+    }
+}

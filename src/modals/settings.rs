@@ -17,6 +17,7 @@ pub struct SettingsForm {
     server_active: bool,
     server_addr_input: String,
     default_key_path_input: String,
+    save_channels: bool,
 }
 
 impl SettingsForm {
@@ -32,6 +33,7 @@ impl SettingsForm {
                 .default_key_path()
                 .to_string_lossy()
                 .to_string(),
+            save_channels: settings_base.save_channels(),
         }
     }
 }
@@ -59,6 +61,8 @@ impl Form<'_> for SettingsForm {
         ui.label("Username");
         ui.text_edit_singleline(&mut self.uname_input);
 
+        ui.checkbox(&mut self.save_channels, "Save saved channels");
+
         ui.label("Server");
         ui.checkbox(&mut self.server_active, "Enabled");
         ui.add_enabled_ui(self.server_active, |ui| {
@@ -80,6 +84,7 @@ impl Form<'_> for SettingsForm {
                     .not()
                     .then_some(self.uname_input.clone()),
                 Some(PathBuf::from(self.default_key_path_input.clone()).canonicalize()?),
+                self.save_channels,
             )))
         } else {
             Ok(None)

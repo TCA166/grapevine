@@ -10,6 +10,7 @@ use settings::Settings;
 
 mod modals;
 
+use grapevine_lib::ChannelDesc;
 use serde_json::from_str;
 
 const TITLE: &'static str = env!("CARGO_PKG_NAME");
@@ -26,15 +27,37 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             Ok({
-                let settings = cc
-                    .storage
-                    .and_then(|storage| {
-                        storage
-                            .get_string(type_name::<Settings>())
-                            .and_then(|serialized| from_str(serialized.as_str()).unwrap())
-                    })
-                    .unwrap_or(Settings::default());
-                Box::new(GrapevineUI::new(settings))
+                let mut settings = None;
+                let mut saved_channels = None;
+
+                if let Some(storage) = cc.storage {
+                    if let Some(serialized_settings) = storage.get_string(type_name::<Settings>()) {
+                        match from_str(serialized_settings.as_str()) {
+                            Ok(val) => {
+                                settings = Some(val);
+                            }
+                            Err(e) => {
+                                eprintln!("{}", e);
+                            }
+                        }
+                    }
+
+                    if let Some(serialized_channels) =
+                        storage.get_string(type_name::<ChannelDesc>())
+                    {
+                        match from_str(serialized_channels.as_str()) {
+                            Ok(val) => saved_channels = Some(val),
+                            Err(e) => {
+                                eprintln!("{}", e);
+                            }
+                        }
+                    }
+                }
+
+                Box::new(GrapevineUI::new(
+                    settings.unwrap_or(Settings::default()),
+                    saved_channels.unwrap_or(Vec::default()),
+                ))
             })
         }),
     )
