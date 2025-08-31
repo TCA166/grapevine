@@ -12,7 +12,7 @@ license = "GPL-3.0-only"
 chrono = { version = "0.4.41", features = ["serde"] }
 bitcode = { version = "0.6.7", features = ["serde"] }
 eframe = { version = "0.32.1", features = ["persistence"] }
-egui = { version = "0.32.1", features = [] }
+egui = "0.32.1"
 integer-encoding = "4.0.2"
 openssl = { version = "0.10.73", features = ["vendored"] }
 serde = "1.0.219"
