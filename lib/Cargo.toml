@@ -7,7 +7,7 @@ description = "Grapevine backend"
 readme = "README.md"
 repository = "https://github.com/TCA166/grapevine"
 license = "GPL-3.0-only"
-keywords = ["peer-to-peer", "end-to-end-encryption", "messanging", "server"]
+keywords = ["peer-to-peer", "encryption", "messaging", "server"]
 categories = []
 
 

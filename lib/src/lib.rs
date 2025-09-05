@@ -1,4 +1,4 @@
-/// Basic messanging protocol functionality
+/// Basic messaging protocol functionality
 mod protocol;
 pub use protocol::Message;
 

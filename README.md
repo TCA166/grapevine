@@ -1,6 +1,6 @@
 # grapevine
 
-Small peer-to-peer end-to-end encrypted messanging app.
+Small peer-to-peer end-to-end encrypted messaging app.
 
 ## Features
 
