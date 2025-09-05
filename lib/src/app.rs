@@ -65,8 +65,8 @@ fn watchdog(
     }
 }
 
-/// App backend, with no reference to the UI.
-/// In theory this could be used in a CLI no problem.
+/// App backend. A facade over the toolkit. With this struct, you can create, manage, and interact with channels.
+/// The app should self monitor its state and handle errors gracefully.
 pub struct GrapevineApp {
     /// Active channels
     channels: Shared<Vec<Arc<Channel>>>,

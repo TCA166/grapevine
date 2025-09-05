@@ -7,6 +7,7 @@ description = "Small peer-to-peer end-to-end encrypted messanging app."
 readme = "README.md"
 repository = "https://github.com/TCA166/grapevine"
 license = "GPL-3.0-only"
+publish = false
 
 [dependencies]
 eframe = { version = "0.32.1", features = ["persistence"] }

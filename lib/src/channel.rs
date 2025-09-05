@@ -79,6 +79,7 @@ fn deserialize_public_key<'de, D: Deserializer<'de>>(de: D) -> Result<PKey<Publi
         .map_err(|e| D::Error::custom(format!("Failed to parse private key: {}", e)))
 }
 
+/// Core [Channel] data, from which we can recreate a channel
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ChannelDesc {
     name: String,
@@ -98,18 +99,22 @@ pub struct ChannelDesc {
 }
 
 impl ChannelDesc {
+    /// Get the name of the channel
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    /// Get the address, which was last assigned to the channel
     pub fn last_addr(&self) -> &SocketAddr {
         &self.last_addr
     }
 
+    /// Rename the channel
     pub fn rename(&mut self, new: String) {
         self.name = new;
     }
 
+    /// Change the address of the channel
     pub fn change_addr(&mut self, addr: SocketAddr) {
         self.last_addr = addr;
     }
@@ -129,7 +134,20 @@ pub struct Channel {
 }
 
 impl Channel {
-    /// Create a new channel, with the given stream and name
+    /// Create a new channel on the given stream with a certain name.
+    /// First the RSA exchange (handshake) is performed, followed by the AES key exchange.
+    ///
+    /// ## Args
+    ///
+    /// - `stream`: The stream to use for communication
+    /// - `name`: The name of the channel
+    /// - `message_handler`: The handler for new messages, which will be notified when a new message is received
+    ///
+    /// ## Returns
+    ///
+    /// A new channel instance, or an error if the channel could not be created.
+    /// This may mainly happen if the handshake fails. In case, the verification
+    /// of the other party's public key fails, None is returned.
     pub fn new(
         mut stream: TcpStream,
         name: Option<String>,
@@ -162,7 +180,19 @@ impl Channel {
         }
     }
 
-    /// Create a new channel, assuming the RSA handshake has already happened
+    /// Create a new channel, assuming the RSA handshake has already happened.
+    ///
+    /// ## Args
+    ///
+    /// - `stream`: The stream to use for communication
+    /// - `our_rsa_private_key`: Our private RSA key
+    /// - `their_rsa_public_key`: The public RSA key of the other party
+    /// - `name`: The name of the channel
+    /// - `message_handler`: The handler for new messages, which will be notified when a new message is received
+    ///
+    /// ## Returns
+    ///
+    /// A new channel, Err if the handshake failed, or None if the verification of the other party's messages failed.
     pub fn with_keys(
         stream: TcpStream,
         our_rsa_private_key: PKey<Private>,
@@ -180,7 +210,17 @@ impl Channel {
         Self::from_desc(stream, desc, message_handler)
     }
 
-    /// Create a new channel, utilizing a previously saved [ChannelDesc]
+    /// Create a new channel, utilizing a previously saved [ChannelDesc].
+    ///
+    /// ## Args
+    ///
+    /// - `stream`: The TCP stream to use for the channel.
+    /// - `desc`: The channel description.
+    /// - `message_handler`: The message handler to use for the channel.
+    ///
+    /// ## Returns
+    ///
+    /// A new channel, Err if the handshake fails, None if the verification fails.
     pub fn from_desc(
         mut stream: TcpStream,
         desc: ChannelDesc,
@@ -211,8 +251,9 @@ impl Channel {
         }))
     }
 
-    /// Listen for incoming messages on the channel
-    /// This function will continuously listen for incoming messages until an error occurs
+    /// Listen for incoming messages on the channel.
+    /// This function will continuously listen for incoming messages until an
+    /// error occurs, so ideally it should be run in a separate thread.
     pub fn listen(&self) -> Result<(), ProtocolError> {
         let mut stream = self.stream.lock().unwrap().try_clone()?; // important to avoid deadlocks
         loop {
@@ -269,6 +310,7 @@ impl Channel {
         self.stream.lock().unwrap().shutdown(Shutdown::Both)
     }
 
+    /// Get the description of the channel
     pub fn desc(&self) -> &ChannelDesc {
         &self.desc
     }
