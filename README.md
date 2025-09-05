@@ -36,3 +36,9 @@ cargo build --target x86_64-pc-windows-gnu
 ```
 
 should work just fine.
+
+## Library
+
+In case you want to program your own client, the connection handling client
+is available as a library. For more details look at the [`lib`](./lib)
+directory.
