@@ -2,7 +2,7 @@
 
 [![Crates.io Version](https://img.shields.io/crates/v/grapevine_lib)](https://crates.io/crates/grapevine_lib)
 [![docs.rs](https://img.shields.io/docsrs/grapevine_lib)](https://docs.rs/grapevine_lib)
-[![License](https://img.shields.io/crates/l/grapevine_lib)](LICENSE)
+[![License](https://img.shields.io/crates/l/grapevine_lib)](../LICENSE)
 
 The [`grapevine`](https://github.com/TCA166/grapevine) backend. It features
 a fully fledged out socket server, that can handle multiple clients separately
